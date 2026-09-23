@@ -37,9 +37,9 @@ const LAUNCH_SLIDERS: SliderSpec[] = [
   { key: 'releaseHeightM', label: 'リリース高さ', min: 0.2, max: 2.5, step: 0.05, unit: 'm' },
 ];
 const ATTITUDE_SLIDERS: SliderSpec[] = [
-  { key: 'bankRightDeg', label: '右傾き', min: -90, max: 90, step: 1, unit: '°' },
-  { key: 'noseUpDeg', label: '前縁上げ', min: -90, max: 90, step: 1, unit: '°' },
-  { key: 'yawLeftDeg', label: '向き（+左）', min: -90, max: 90, step: 1, unit: '°' },
+  { key: 'bankRightDeg', label: '右傾き', min: -180, max: 180, step: 1, unit: '°' },
+  { key: 'noseUpDeg', label: '前縁上げ', min: -180, max: 180, step: 1, unit: '°' },
+  { key: 'yawLeftDeg', label: '向き（+左）', min: -180, max: 180, step: 1, unit: '°' },
 ];
 const SPIN_SLIDERS: SliderSpec[] = [{ key: 'rpm', label: '回転数', min: 0, max: 5000, step: 50, unit: 'rpm' }];
 const CP_SLIDER: SliderSpec = { key: 'cpBodyZmm', label: '空力中心の位置（+ = 閉じた面の側、0 = 幾何中心）', min: -7.5, max: 7.5, step: 0.25, unit: 'mm' };
