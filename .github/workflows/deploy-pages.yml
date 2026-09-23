@@ -1,0 +1,58 @@
+# viewer をビルドして gh-pages ブランチへ書き出す。
+# GitHub の Settings → Pages → Source を「Deploy from a branch」、Branch を「gh-pages / (root)」にする。
+name: Deploy viewer to gh-pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "viewer/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # gh-pages ブランチへの push に必要
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: viewer/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # Python ゴールデンとの照合テストを含む。失敗したら公開しない
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      # プロジェクトサイトは https://<user>.github.io/<repo>/ で配信されるため base をリポジトリ名にする
+      - run: pnpm exec vite build --base=/${{ github.event.repository.name }}/
+
+      - run: touch dist/.nojekyll
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: viewer/dist
+          force_orphan: true # gh-pages に履歴を積み上げない
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_message: "deploy: ${{ github.sha }}"
