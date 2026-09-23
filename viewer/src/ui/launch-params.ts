@@ -12,6 +12,7 @@ import { deg2rad, qFromAxisAngle, qMultiply, qToMatrix, matVec, type V3 } from '
 
 export type BaseAttitude = 'flat' | 'edge_on';
 export type SpinAxisMode = 'cap' | 'world_x' | 'world_y' | 'world_z';
+export type RotationSense = 'clockwise' | 'counterclockwise';
 
 export interface LaunchParams {
   presetName: string;
@@ -25,8 +26,8 @@ export interface LaunchParams {
   yawLeftDeg: number;
   rpm: number;
   spinAxis: SpinAxisMode;
-  /** +1: 軸の正方向（右手の法則）/ -1: 逆回転 */
-  spinSign: 1 | -1;
+  /** SPIN_VIEWPOINTS[spinAxis] の位置から見た回転の向き */
+  rotationSense: RotationSense;
   enable: { drag: boolean; lift: boolean; magnus: boolean; moments: boolean };
   cdProjected: number;
   clAlphaPerRad: number;
@@ -49,7 +50,7 @@ export const DEFAULT_LAUNCH: LaunchParams = {
   yawLeftDeg: 0,
   rpm: 1200,
   spinAxis: 'cap',
-  spinSign: 1,
+  rotationSense: 'counterclockwise',
   enable: { drag: true, lift: true, magnus: true, moments: true },
   cdProjected: 1.0,
   clAlphaPerRad: 1.4,
@@ -70,12 +71,32 @@ export function faceNormalFor(p: Pick<LaunchParams, 'baseAttitude' | 'bankRightD
   return matVec(qToMatrix(q), BASE_NORMAL[p.baseAttitude]);
 }
 
-const WORLD_AXES: Record<Exclude<SpinAxisMode, 'cap'>, V3> = { world_x: [1, 0, 0], world_y: [0, 1, 0], world_z: [0, 0, 1] };
+/**
+ * 時計回り/反時計回りを判断する視点。
+ * 視点方向 d から見て反時計回り = 角速度ベクトルが d を向く（右手の法則）。
+ *   cap     : 天面側（body +Z）から見る
+ *   world_z : 真上から見る
+ *   world_y : 投手の右側から見る（側面カメラと同じ。バックスピンは反時計回りに見える）
+ *   world_x : 投手の後ろ（捕手方向を向いて）から見る
+ */
+export const SPIN_VIEWPOINTS: Record<SpinAxisMode, { label: string; towardViewer: V3 }> = {
+  cap: { label: '天面側から見て', towardViewer: [0, 0, 1] },
+  world_z: { label: '真上から見て', towardViewer: [0, 0, 1] },
+  world_y: { label: '投手の右側から見て', towardViewer: [0, -1, 0] },
+  world_x: { label: '投手の後ろから見て', towardViewer: [-1, 0, 0] },
+};
+
+/** 角速度ベクトルの向き（cap は body 座標、それ以外は world 座標）。 */
+export function spinAxisVector(p: Pick<LaunchParams, 'spinAxis' | 'rotationSense'>): V3 {
+  const d = SPIN_VIEWPOINTS[p.spinAxis].towardViewer;
+  const s = p.rotationSense === 'counterclockwise' ? 1 : -1;
+  return [d[0] * s || 0, d[1] * s || 0, d[2] * s || 0]; // || 0 で -0 を 0 に揃える
+}
 
 function angularVelocitySpec(p: LaunchParams): Record<string, unknown> {
-  if (p.spinAxis === 'cap') return { rpm: p.rpm, axis_body: [0, 0, p.spinSign] };
-  const a = WORLD_AXES[p.spinAxis];
-  return { rpm: p.rpm, axis_world: [a[0] * p.spinSign, a[1] * p.spinSign, a[2] * p.spinSign] };
+  if (p.spinAxis === 'cap') return { rpm: p.rpm, axis_body: [...spinAxisVector(p)] };
+  // world 軸は Python の書式でも「どこから見て時計/反時計回りか」をそのまま残す
+  return { rpm: p.rpm, rotation_sense: p.rotationSense, viewed_from_world: [...SPIN_VIEWPOINTS[p.spinAxis].towardViewer] };
 }
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -148,7 +169,7 @@ export function launchParamsFromPreset(name: string, preset: Record<string, unkn
     yawLeftDeg: 0,
     rpm: num(spin.rpm, current.rpm),
     spinAxis: 'cap',
-    spinSign: spin.rotation_sense === 'clockwise' ? -1 : 1,
+    rotationSense: spin.rotation_sense === 'clockwise' ? 'clockwise' : 'counterclockwise',
     enable: { drag: flag('drag'), lift: flag('lift'), magnus: flag('magnus'), moments: flag('moments') },
     cdProjected: num(section(aero, 'drag').cd_projected, current.cdProjected),
     clAlphaPerRad: num(section(aero, 'lift').cl_alpha_per_rad, current.clAlphaPerRad),

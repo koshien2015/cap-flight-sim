@@ -8,14 +8,14 @@ import { describe, expect, it } from 'vitest';
 import presets from '../src/presets/presets.generated.json';
 import { configFromRaw } from '../src/physics/config';
 import { runSimulation } from '../src/physics/simulate';
-import { buildRawConfig, DEFAULT_LAUNCH, faceNormalFor, launchParamsFromPreset } from '../src/ui/launch-params';
+import { buildRawConfig, DEFAULT_LAUNCH, faceNormalFor, launchParamsFromPreset, spinAxisVector } from '../src/ui/launch-params';
 
 const FIXTURE = new URL('./fixtures/exported-config.json', import.meta.url);
 const PRESETS = presets as Record<string, Record<string, unknown>>;
 
 function buildFixture() {
   const base = launchParamsFromPreset('overhand_drop', PRESETS.overhand_drop, DEFAULT_LAUNCH);
-  const params = { ...base, bankRightDeg: 20, noseUpDeg: 5, yawLeftDeg: -10, rpm: 1800, spinSign: -1 as const, cmPitch0: 0.01 };
+  const params = { ...base, bankRightDeg: 20, noseUpDeg: 5, yawLeftDeg: -10, rpm: 1800, rotationSense: 'clockwise' as const, cmPitch0: 0.01 };
   const raw = buildRawConfig(PRESETS.overhand_drop, params, 'ts_exported_fixture');
   const result = runSimulation(configFromRaw(raw));
   const last = result.frames[result.frames.length - 1];
@@ -37,6 +37,27 @@ describe('export round trip', () => {
     close(faceNormalFor({ baseAttitude: 'edge_on', bankRightDeg: 10, noseUpDeg: 0, yawLeftDeg: 0 }), [0, Math.cos(r(10)), Math.sin(r(10))]);
     close(faceNormalFor({ baseAttitude: 'flat', bankRightDeg: 0, noseUpDeg: 10, yawLeftDeg: 0 }), [-Math.sin(r(10)), 0, Math.cos(r(10))]);
     close(faceNormalFor({ baseAttitude: 'flat', bankRightDeg: 10, noseUpDeg: 0, yawLeftDeg: 0 }), [0, -Math.sin(r(10)), Math.cos(r(10))]);
+  });
+
+  it('clockwise/counterclockwise follows the right-hand rule from the stated viewpoint', () => {
+    // 投手の右側から見て反時計回り = ω が -Y = バックスピン（進行方向 +X で上向きマグヌス）
+    expect(spinAxisVector({ spinAxis: 'world_y', rotationSense: 'counterclockwise' })).toEqual([0, -1, 0]);
+    // 真上から見て時計回り = ω が -Z
+    expect(spinAxisVector({ spinAxis: 'world_z', rotationSense: 'clockwise' })).toEqual([0, 0, -1]);
+    // 投手の後ろから見て反時計回り = ω が -X
+    expect(spinAxisVector({ spinAxis: 'world_x', rotationSense: 'counterclockwise' })).toEqual([-1, 0, 0]);
+    // キャップ軸: 天面側から見て反時計回り = body +Z
+    expect(spinAxisVector({ spinAxis: 'cap', rotationSense: 'counterclockwise' })).toEqual([0, 0, 1]);
+  });
+
+  it('world-axis export keeps rotation_sense and viewpoint, and Python-compatible config agrees', () => {
+    const base = launchParamsFromPreset('overhand_drop', PRESETS.overhand_drop, DEFAULT_LAUNCH);
+    const raw = buildRawConfig(PRESETS.overhand_drop, { ...base, spinAxis: 'world_y', rotationSense: 'counterclockwise' }, 'x');
+    const spin = (raw.initial_state as Record<string, unknown>).angular_velocity;
+    expect(spin).toEqual({ rpm: base.rpm, rotation_sense: 'counterclockwise', viewed_from_world: [0, -1, 0] });
+    const res = runSimulation(configFromRaw(raw));
+    const mag = res.frames[0].aero.magnus;
+    expect(mag[2]).toBeGreaterThan(0); // バックスピンなので上向き
   });
 
   it('every generated preset runs in the browser engine', () => {

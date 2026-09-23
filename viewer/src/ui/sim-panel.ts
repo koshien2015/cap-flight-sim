@@ -8,7 +8,9 @@ import {
   DEFAULT_LAUNCH,
   faceNormalFor,
   launchParamsFromPreset,
+  SPIN_VIEWPOINTS,
   type LaunchParams,
+  type RotationSense,
 } from './launch-params';
 import { el } from './panel';
 
@@ -34,9 +36,9 @@ const LAUNCH_SLIDERS: SliderSpec[] = [
   { key: 'releaseHeightM', label: 'リリース高さ', min: 0.2, max: 2.5, step: 0.05, unit: 'm' },
 ];
 const ATTITUDE_SLIDERS: SliderSpec[] = [
-  { key: 'bankRightDeg', label: '右傾き', min: -60, max: 60, step: 1, unit: '°' },
-  { key: 'noseUpDeg', label: '前縁上げ', min: -45, max: 45, step: 1, unit: '°' },
-  { key: 'yawLeftDeg', label: '向き（+左）', min: -60, max: 60, step: 1, unit: '°' },
+  { key: 'bankRightDeg', label: '右傾き', min: -90, max: 90, step: 1, unit: '°' },
+  { key: 'noseUpDeg', label: '前縁上げ', min: -90, max: 90, step: 1, unit: '°' },
+  { key: 'yawLeftDeg', label: '向き（+左）', min: -90, max: 90, step: 1, unit: '°' },
 ];
 const SPIN_SLIDERS: SliderSpec[] = [{ key: 'rpm', label: '回転数', min: 0, max: 5000, step: 50, unit: 'rpm' }];
 const COEFF_SLIDERS: SliderSpec[] = [
@@ -78,7 +80,8 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
 
   async function recompute() {
     const n = faceNormalFor(params);
-    vectors.textContent = `面法線 n = ${vecText(n)}\n回転軸 = ${params.spinAxis === 'cap' ? `${params.spinSign > 0 ? '+' : '−'}n（キャップ自身の軸）` : `${params.spinSign > 0 ? '+' : '−'}${params.spinAxis.replace('world_', '')}（world）`}`;
+    const sense = params.rotationSense === 'clockwise' ? '時計回り' : '反時計回り';
+    vectors.textContent = `面法線 n = ${vecText(n)}\n回転: ${SPIN_VIEWPOINTS[params.spinAxis].label}${sense}`;
     try {
       const res = await client.run(currentRaw(LIVE_NAME), LIVE_NAME);
       if (!res) return;
@@ -141,9 +144,21 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     '回転軸',
     [['cap', 'キャップ自身の軸（面法線）'], ['world_z', '上下軸（world Z）'], ['world_y', '左右軸（world Y）'], ['world_x', '進行方向軸（world X）']],
     () => params.spinAxis,
-    (v) => set({ spinAxis: v }),
+    (v) => {
+      set({ spinAxis: v });
+      syncSenseOptions();
+    },
   );
-  const [reverseRow, reverseInput] = check('逆回転', () => params.spinSign < 0, (c) => set({ spinSign: c ? -1 : 1 }));
+  const senseText = (v: RotationSense) => `${SPIN_VIEWPOINTS[params.spinAxis].label}${v === 'clockwise' ? '時計回り' : '反時計回り'}`;
+  const [senseRow, senseSelect] = select<RotationSense>(
+    '回転の向き',
+    [['counterclockwise', senseText('counterclockwise')], ['clockwise', senseText('clockwise')]],
+    () => params.rotationSense,
+    (v) => set({ rotationSense: v }),
+  );
+  function syncSenseOptions() {
+    Array.from(senseSelect.options).forEach((o) => (o.textContent = senseText(o.value as RotationSense)));
+  }
   const toggles = (['drag', 'lift', 'magnus', 'moments'] as const).map((k) =>
     check({ drag: '抗力', lift: '揚力', magnus: 'マグヌス', moments: 'モーメント' }[k], () => params.enable[k], (c) => set({ enable: { ...params.enable, [k]: c } })),
   );
@@ -152,7 +167,8 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     presetSelect.value = params.presetName;
     attitudeSelect.value = params.baseAttitude;
     axisSelect.value = params.spinAxis;
-    reverseInput.checked = params.spinSign < 0;
+    senseSelect.value = params.rotationSense;
+    syncSenseOptions();
     toggles.forEach(([, input], i) => (input.checked = params.enable[(['drag', 'lift', 'magnus', 'moments'] as const)[i]]));
     const specs = [...LAUNCH_SLIDERS, ...ATTITUDE_SLIDERS, ...SPIN_SLIDERS, ...COEFF_SLIDERS];
     sliderInputs.forEach(([input, value], key) => {
@@ -189,7 +205,7 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     presetRow,
     el('h3', { textContent: '投射' }), ...LAUNCH_SLIDERS.map(slider),
     el('h3', { textContent: '姿勢（リリース時）' }), attitudeRow, ...ATTITUDE_SLIDERS.map(slider),
-    el('h3', { textContent: 'スピン' }), ...SPIN_SLIDERS.map(slider), axisRow, reverseRow,
+    el('h3', { textContent: 'スピン' }), ...SPIN_SLIDERS.map(slider), axisRow, senseRow,
     vectors,
     el('details', {}, [
       el('summary', { textContent: '空気力・係数（すべて仮定値）' }),
