@@ -36,6 +36,12 @@ export interface LaunchParams {
   cmPitch0: number;
   spinDamping: number;
   tumbleDamping: number;
+  /**
+   * 推測モデル: 空力中心を重心からずらし、重心のずれによる復原モーメントを入れる。
+   * 空力中心は body z 上の位置 [mm]（0 = 幾何中心）。重心は慣性近似で閉じた面の側へ寄っている。
+   */
+  cpOffsetEnabled: boolean;
+  cpBodyZmm: number;
 }
 
 export const DEFAULT_LAUNCH: LaunchParams = {
@@ -59,6 +65,8 @@ export const DEFAULT_LAUNCH: LaunchParams = {
   cmPitch0: 0,
   spinDamping: 0,
   tumbleDamping: 0,
+  cpOffsetEnabled: false,
+  cpBodyZmm: 0,
 };
 
 const BASE_NORMAL: Record<BaseAttitude, V3> = { flat: [0, 0, 1], edge_on: [0, 1, 0] };
@@ -74,13 +82,13 @@ export function faceNormalFor(p: Pick<LaunchParams, 'baseAttitude' | 'bankRightD
 /**
  * 時計回り/反時計回りを判断する視点。
  * 視点方向 d から見て反時計回り = 角速度ベクトルが d を向く（右手の法則）。
- *   cap     : 天面側（body +Z）から見る
+ *   cap     : 閉じた面の側（body +Z）から見る
  *   world_z : 真上から見る
  *   world_y : 投手の右側から見る（側面カメラと同じ。バックスピンは反時計回りに見える）
  *   world_x : 投手の後ろ（捕手方向を向いて）から見る
  */
 export const SPIN_VIEWPOINTS: Record<SpinAxisMode, { label: string; towardViewer: V3 }> = {
-  cap: { label: '天面側から見て', towardViewer: [0, 0, 1] },
+  cap: { label: '閉じた面の側から見て', towardViewer: [0, 0, 1] },
   world_z: { label: '真上から見て', towardViewer: [0, 0, 1] },
   world_y: { label: '投手の右側から見て', towardViewer: [0, -1, 0] },
   world_x: { label: '投手の後ろから見て', towardViewer: [-1, 0, 0] },
@@ -138,6 +146,9 @@ export function buildRawConfig(preset: Record<string, unknown>, p: LaunchParams,
         cm_pitch0: assumed(p.cmPitch0),
         spin_damping: assumed(p.spinDamping),
         tumble_damping: assumed(p.tumbleDamping),
+        center_of_pressure_body_m: p.cpOffsetEnabled
+          ? { value: [0, 0, p.cpBodyZmm / 1000], source: 'assumed', note: '推測: 重心のずれによる復原モーメント（空力中心の位置は未検証）' }
+          : null,
       },
     },
   };
@@ -178,7 +189,12 @@ export function launchParamsFromPreset(name: string, preset: Record<string, unkn
     cmPitch0: num(section(aero, 'moments').cm_pitch0, 0),
     spinDamping: num(section(aero, 'moments').spin_damping, 0),
     tumbleDamping: num(section(aero, 'moments').tumble_damping, 0),
+    ...cpFromPreset(section(aero, 'moments').center_of_pressure_body_m),
   };
+}
+
+function cpFromPreset(cp: unknown): Pick<LaunchParams, 'cpOffsetEnabled' | 'cpBodyZmm'> {
+  return Array.isArray(cp) && cp.length === 3 ? { cpOffsetEnabled: true, cpBodyZmm: Number(cp[2]) * 1000 } : { cpOffsetEnabled: false, cpBodyZmm: 0 };
 }
 
 export function cliCommand(fileName: string): string {

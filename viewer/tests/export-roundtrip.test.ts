@@ -15,7 +15,7 @@ const PRESETS = presets as Record<string, Record<string, unknown>>;
 
 function buildFixture() {
   const base = launchParamsFromPreset('overhand_drop', PRESETS.overhand_drop, DEFAULT_LAUNCH);
-  const params = { ...base, bankRightDeg: 20, noseUpDeg: 5, yawLeftDeg: -10, rpm: 1800, rotationSense: 'clockwise' as const, cmPitch0: 0.01 };
+  const params = { ...base, bankRightDeg: 20, noseUpDeg: 5, yawLeftDeg: -10, rpm: 1800, rotationSense: 'clockwise' as const, cmPitch0: 0.01, tumbleDamping: 0.03, cpOffsetEnabled: true, cpBodyZmm: 0 };
   const raw = buildRawConfig(PRESETS.overhand_drop, params, 'ts_exported_fixture');
   const result = runSimulation(configFromRaw(raw));
   const last = result.frames[result.frames.length - 1];
@@ -58,6 +58,18 @@ describe('export round trip', () => {
     const res = runSimulation(configFromRaw(raw));
     const mag = res.frames[0].aero.magnus;
     expect(mag[2]).toBeGreaterThan(0); // バックスピンなので上向き
+  });
+
+  it('restoring moment toggle: off exports null, on turns the heavy closed face down when dropped', () => {
+    const base = launchParamsFromPreset('flick_flat', PRESETS.flick_flat, DEFAULT_LAUNCH);
+    const drop = { ...base, speedKmh: 1, releaseHeightM: 5, noseUpDeg: 60, rpm: 0, tumbleDamping: 0.05 };
+    const off = buildRawConfig(PRESETS.flick_flat, drop, 'off') as any;
+    expect(off.aerodynamics.moments.center_of_pressure_body_m).toBeNull();
+    const on = buildRawConfig(PRESETS.flick_flat, { ...drop, cpOffsetEnabled: true, cpBodyZmm: 0 }, 'on') as any;
+    expect(on.aerodynamics.moments.center_of_pressure_body_m.value).toEqual([0, 0, 0]);
+    const minNormalZ = (raw: Record<string, unknown>) => Math.min(...runSimulation(configFromRaw(raw)).frames.map((f) => f.normalWorld[2]));
+    expect(minNormalZ(off)).toBeCloseTo(0.5, 6); // OFF: 姿勢は変わらない
+    expect(minNormalZ(on)).toBeLessThan(-0.9); // ON: 閉じた面が下向きの水平近くまで回る
   });
 
   it('every generated preset runs in the browser engine', () => {

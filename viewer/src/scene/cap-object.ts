@@ -18,7 +18,7 @@ export class CapObject {
       new CylinderGeometry(radius, radius, heightM, 40, 1, true),
       new MeshStandardMaterial({ color, roughness: 0.5, side: DoubleSide }),
     );
-    // 天面（閉じた側）を白で区別する。body +Z = three ローカル +Y
+    // 閉じた面を白で区別する。body +Z = three ローカル +Y
     const top = new Mesh(new CylinderGeometry(radius, radius, heightM * 0.08, 40), new MeshStandardMaterial({ color: 0xf5f5f5 }));
     top.position.y = (bodyZIsTop ? 1 : -1) * (heightM / 2);
     // 回転が見えるよう面内に目印の帯を付ける

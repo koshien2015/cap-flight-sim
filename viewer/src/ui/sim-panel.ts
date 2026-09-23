@@ -2,6 +2,7 @@
 import presetsJson from '../presets/presets.generated.json';
 import type { SimResponse } from '../physics/sim-client';
 import { SimClient } from '../physics/sim-client';
+import { configFromRaw } from '../physics/config';
 import {
   buildRawConfig,
   cliCommand,
@@ -41,6 +42,7 @@ const ATTITUDE_SLIDERS: SliderSpec[] = [
   { key: 'yawLeftDeg', label: '向き（+左）', min: -90, max: 90, step: 1, unit: '°' },
 ];
 const SPIN_SLIDERS: SliderSpec[] = [{ key: 'rpm', label: '回転数', min: 0, max: 5000, step: 50, unit: 'rpm' }];
+const CP_SLIDER: SliderSpec = { key: 'cpBodyZmm', label: '空力中心の位置（+ = 閉じた面の側、0 = 幾何中心）', min: -7.5, max: 7.5, step: 0.25, unit: 'mm' };
 const COEFF_SLIDERS: SliderSpec[] = [
   { key: 'cdProjected', label: 'Cd（投影面積基準）', min: 0, max: 2, step: 0.05, unit: '' },
   { key: 'clAlphaPerRad', label: '揚力傾斜 Clα', min: 0, max: 4, step: 0.1, unit: '/rad' },
@@ -69,6 +71,7 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
   const sliderInputs = new Map<NumKey, [HTMLInputElement, HTMLSpanElement]>();
 
   const status = el('div', { className: 'mono sim-status' });
+  const cpInfo = el('div', { className: 'note' });
   const vectors = el('div', { className: 'mono sim-vectors' });
 
   const currentRaw = (name: string) => buildRawConfig(PRESETS[params.presetName], params, name);
@@ -81,7 +84,8 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
   async function recompute() {
     const n = faceNormalFor(params);
     const sense = params.rotationSense === 'clockwise' ? '時計回り' : '反時計回り';
-    vectors.textContent = `面法線 n = ${vecText(n)}\n回転: ${SPIN_VIEWPOINTS[params.spinAxis].label}${sense}`;
+    vectors.textContent = `閉じた面の法線 n = ${vecText(n)}\n回転: ${SPIN_VIEWPOINTS[params.spinAxis].label}${sense}`;
+    updateCpInfo();
     try {
       const res = await client.run(currentRaw(LIVE_NAME), LIVE_NAME);
       if (!res) return;
@@ -92,6 +96,20 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     } catch (err) {
       status.textContent = `エラー: ${(err as Error).message}`;
       status.classList.add('error');
+    }
+  }
+
+  function updateCpInfo() {
+    try {
+      const comZmm = configFromRaw(currentRaw('cp')).cap.centerOfMassBodyM[2] * 1000;
+      const arm = params.cpBodyZmm - comZmm;
+      const where = arm < 0 ? '重心より空洞側' : arm > 0 ? '重心より閉じた面の側' : '重心と一致';
+      cpInfo.textContent = !params.cpOffsetEnabled
+        ? `OFF（空力中心 = 重心として扱い、このモーメントは 0）。重心は閉じた面の側へ ${fmt(comZmm, 2)} mm（慣性近似）`
+        : `${params.enable.moments ? '' : '⚠ モーメント OFF のため無効。'}重心 ${fmt(comZmm, 2)} mm、空力中心 ${fmt(params.cpBodyZmm, 2)} mm → ${where} ${fmt(Math.abs(arm), 2)} mm。` +
+          (arm < 0 ? '重い閉じた面の側を進行方向へ向けようとする（シャトル型）' : arm > 0 ? '空洞側を進行方向へ向けようとする' : 'モーメントなし');
+    } catch {
+      cpInfo.textContent = '';
     }
   }
 
@@ -159,6 +177,7 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
   function syncSenseOptions() {
     Array.from(senseSelect.options).forEach((o) => (o.textContent = senseText(o.value as RotationSense)));
   }
+  const [cpRow, cpInput] = check('重心のずれによる復原モーメント（推測・未検証）', () => params.cpOffsetEnabled, (c) => set({ cpOffsetEnabled: c }));
   const toggles = (['drag', 'lift', 'magnus', 'moments'] as const).map((k) =>
     check({ drag: '抗力', lift: '揚力', magnus: 'マグヌス', moments: 'モーメント' }[k], () => params.enable[k], (c) => set({ enable: { ...params.enable, [k]: c } })),
   );
@@ -169,8 +188,9 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     axisSelect.value = params.spinAxis;
     senseSelect.value = params.rotationSense;
     syncSenseOptions();
+    cpInput.checked = params.cpOffsetEnabled;
     toggles.forEach(([, input], i) => (input.checked = params.enable[(['drag', 'lift', 'magnus', 'moments'] as const)[i]]));
-    const specs = [...LAUNCH_SLIDERS, ...ATTITUDE_SLIDERS, ...SPIN_SLIDERS, ...COEFF_SLIDERS];
+    const specs = [...LAUNCH_SLIDERS, ...ATTITUDE_SLIDERS, ...SPIN_SLIDERS, CP_SLIDER, ...COEFF_SLIDERS];
     sliderInputs.forEach(([input, value], key) => {
       input.value = String(params[key]);
       value.textContent = `${params[key]} ${specs.find((s) => s.key === key)?.unit ?? ''}`;
@@ -207,6 +227,7 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     el('h3', { textContent: '姿勢（リリース時）' }), attitudeRow, ...ATTITUDE_SLIDERS.map(slider),
     el('h3', { textContent: 'スピン' }), ...SPIN_SLIDERS.map(slider), axisRow, senseRow,
     vectors,
+    el('h3', { textContent: '推測モデル（ON/OFF）' }), cpRow, slider(CP_SLIDER), cpInfo,
     el('details', {}, [
       el('summary', { textContent: '空気力・係数（すべて仮定値）' }),
       el('div', { className: 'row' }, toggles.map(([row]) => row)),

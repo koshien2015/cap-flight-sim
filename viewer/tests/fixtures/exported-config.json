@@ -95,7 +95,15 @@
     }
    },
    "moments": {
-    "center_of_pressure_body_m": null,
+    "center_of_pressure_body_m": {
+     "value": [
+      0,
+      0,
+      0
+     ],
+     "source": "assumed",
+     "note": "推測: 重心のずれによる復原モーメント（空力中心の位置は未検証）"
+    },
     "cm_pitch0": {
      "value": 0.01,
      "source": "assumed"
@@ -109,7 +117,7 @@
      "source": "assumed"
     },
     "tumble_damping": {
-     "value": 0,
+     "value": 0.03,
      "source": "assumed"
     }
    }
@@ -142,10 +150,10 @@
  "expected": {
   "terminationReason": "ground",
   "finalPosition": [
-   8.587364014917023,
-   -0.880375214652361,
-   1.5008746198988399e-16
+   7.575983524522004,
+   -1.4413109117764398,
+   -1.1818481306449802e-16
   ],
-  "finalTime": 0.9887419628465606
+  "finalTime": 0.8561415405085792
  }
 }
