@@ -1,0 +1,7 @@
+# 実験E（追加）: 係数感度。仮定係数のどの組み合わせなら捕手面へ届くかを見る逆算の足がかり。
+# 結果は「届くために必要な係数の桁」を示すだけで、係数の正解を示すものではない。
+name: E_drag_lift_sensitivity
+base_config: ../examples/flick_flat.yaml   # 面水平なので cl0 が上向き揚力になる
+grid:
+  aerodynamics.drag.cd_projected: [0.2, 0.4, 0.7, 1.0]
+  aerodynamics.lift.cl0: [0.0, 0.2, 0.4]

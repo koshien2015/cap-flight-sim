@@ -1,0 +1,15 @@
+# オーバースロー（キャップを立てたエッジオン投射）の例。
+# 面法線を左右(+Y)に向けて立て、トップスピン（指で切る想定）を与える。
+# FLU 右手系では ω = +Y がトップスピン（進行方向 +X に対し上端が前へ回る）。
+extends: _base_cap.yaml
+name: overhand_drop
+initial_state:
+  position_world_m: [0.0, 0.0, 1.45]
+  speed_kmh: 58.0
+  launch_azimuth_deg: 0.0
+  launch_elevation_deg: 2.0
+  face_normal_world: [0.0, 1.0, 0.0]
+  body_x_hint_world: [1.0, 0.0, 0.0]
+  angular_velocity:
+    rpm: 1200
+    axis_world: [0.0, 1.0, 0.0]

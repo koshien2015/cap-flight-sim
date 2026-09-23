@@ -1,0 +1,20 @@
+# 実験A: 回転方向の反転
+# 初速・投射角・面の向き・回転数を揃え、角速度ベクトルの符号だけを反転する。
+# 目的: 横加速度・到達位置が左右反転するか。
+name: A_reverse_spin
+base_config: ../examples/flick_flat.yaml
+variants:
+  - name: flat_ccw_from_above
+    overrides:
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}   # キャップ自身の軸（面法線）まわり
+  - name: flat_cw_from_above
+    overrides:
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, -1.0]}
+  - name: edge_on_topspin
+    overrides:
+      initial_state.face_normal_world: [0.0, 1.0, 0.0]
+      initial_state.angular_velocity: {rpm: 1500, axis_world: [0.0, 1.0, 0.0]}
+  - name: edge_on_backspin
+    overrides:
+      initial_state.face_normal_world: [0.0, 1.0, 0.0]
+      initial_state.angular_velocity: {rpm: 1500, axis_world: [0.0, -1.0, 0.0]}

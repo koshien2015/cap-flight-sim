@@ -1,0 +1,14 @@
+# フィッティング設定の例。
+# base_config の初期条件を全軌道で共有し、parameters を共通値として推定する。
+base_config: ../examples/flick_flat.yaml
+max_nfev: 100
+parameters:
+  - path: aerodynamics.drag.cd_projected
+    initial: 1.0
+    bounds: [0.1, 2.0]
+  - path: aerodynamics.magnus.coefficient
+    initial: 1.0
+    bounds: [0.0, 4.0]
+  - path: aerodynamics.lift.cl0
+    initial: 0.0
+    bounds: [-0.5, 0.5]

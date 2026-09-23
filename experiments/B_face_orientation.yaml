@@ -1,0 +1,28 @@
+# 実験B: 面の向き（回転軸は常に面法線 = axis_body +Z, 1200 rpm）
+# 目的: 揚力・落下量・横変化に対する姿勢の影響。
+# 前後傾斜 = 面水平から前縁を上げ(+)/下げ(-)。左右傾斜 = エッジオンの上端を左(+)/右(-)へ倒す。
+name: B_face_orientation
+base_config: ../examples/overhand_drop.yaml
+base_overrides:
+  initial_state.angular_velocity: {rpm: 1200, axis_body: [0.0, 0.0, 1.0]}
+variants:
+  - name: flat_horizontal
+    overrides: {initial_state.face_normal_world: [0, 0, 1]}
+  - name: flat_nose_up_5
+    overrides: {initial_state.face_normal_world: [-0.087156, 0, 0.996195]}
+  - name: flat_nose_down_5
+    overrides: {initial_state.face_normal_world: [0.087156, 0, 0.996195]}
+  - name: flat_nose_up_10
+    overrides: {initial_state.face_normal_world: [-0.173648, 0, 0.984808]}
+  - name: flat_nose_down_10
+    overrides: {initial_state.face_normal_world: [0.173648, 0, 0.984808]}
+  - name: edge_on_vertical
+    overrides: {initial_state.face_normal_world: [0, 1, 0]}
+  - name: edge_on_lean_left_5
+    overrides: {initial_state.face_normal_world: [0, 0.996195, -0.087156]}
+  - name: edge_on_lean_right_5
+    overrides: {initial_state.face_normal_world: [0, 0.996195, 0.087156]}
+  - name: edge_on_lean_left_10
+    overrides: {initial_state.face_normal_world: [0, 0.984808, -0.173648]}
+  - name: edge_on_lean_right_10
+    overrides: {initial_state.face_normal_world: [0, 0.984808, 0.173648]}

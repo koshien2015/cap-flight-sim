@@ -1,0 +1,59 @@
+# 実験D: 回転なし／低回転／高回転（面水平の弾き投げ型とエッジオン型）
+# 目的: 回転による横力と姿勢安定を分離する。
+# 注: 現在の既定係数ではモーメント=0 のため、回転による姿勢安定効果（ジャイロ）は
+#     空力モーメントを与えた場合にのみ差として現れる。D_with_moment 系で cm_pitch を仮定値として与える。
+name: D_spin_rate
+base_config: ../examples/flick_flat.yaml
+variants:
+  - name: flat_0rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 0, axis_body: [0.0, 0.0, 1.0]}
+  - name: flat_300rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 300, axis_body: [0.0, 0.0, 1.0]}
+  - name: flat_1500rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: flat_3000rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 3000, axis_body: [0.0, 0.0, 1.0]}
+  - name: edge_on_0rpm
+    overrides:
+      initial_state.face_normal_world: [0, 1, 0]
+      initial_state.angular_velocity: {rpm: 0, axis_body: [0.0, 0.0, 1.0]}
+  - name: edge_on_300rpm
+    overrides:
+      initial_state.face_normal_world: [0, 1, 0]
+      initial_state.angular_velocity: {rpm: 300, axis_body: [0.0, 0.0, 1.0]}
+  - name: edge_on_1500rpm
+    overrides:
+      initial_state.face_normal_world: [0, 1, 0]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: edge_on_3000rpm
+    overrides:
+      initial_state.face_normal_world: [0, 1, 0]
+      initial_state.angular_velocity: {rpm: 3000, axis_body: [0.0, 0.0, 1.0]}
+  - name: flat_with_moment_0rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 0, axis_body: [0.0, 0.0, 1.0]}
+      aerodynamics.moments.cm_pitch0: {value: 0.02, source: assumed, note: 'ジャイロ安定性確認用の仮定値'}
+  - name: flat_with_moment_300rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 300, axis_body: [0.0, 0.0, 1.0]}
+      aerodynamics.moments.cm_pitch0: {value: 0.02, source: assumed, note: 'ジャイロ安定性確認用の仮定値'}
+  - name: flat_with_moment_1500rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+      aerodynamics.moments.cm_pitch0: {value: 0.02, source: assumed, note: 'ジャイロ安定性確認用の仮定値'}
+  - name: flat_with_moment_3000rpm
+    overrides:
+      initial_state.face_normal_world: [0, 0, 1]
+      initial_state.angular_velocity: {rpm: 3000, axis_body: [0.0, 0.0, 1.0]}
+      aerodynamics.moments.cm_pitch0: {value: 0.02, source: assumed, note: 'ジャイロ安定性確認用の仮定値'}

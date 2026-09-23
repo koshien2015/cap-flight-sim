@@ -1,0 +1,46 @@
+[
+  {
+    "name": "flick_low_drag_reaches (E: cd=0.4, cl0=0.2)",
+    "file": "flick_low_drag_reaches.json"
+  },
+  {
+    "name": "flick_flat",
+    "file": "flick_flat.json"
+  },
+  {
+    "name": "sidearm_flat",
+    "file": "sidearm_flat.json"
+  },
+  {
+    "name": "overhand_drop",
+    "file": "overhand_drop.json"
+  },
+  {
+    "name": "ballistic_no_aero",
+    "file": "ballistic_no_aero.json"
+  },
+  {
+    "name": "B: edge_on_vertical",
+    "file": "B_edge_on_vertical.json"
+  },
+  {
+    "name": "B: edge_on_lean_left_10",
+    "file": "B_edge_on_lean_left_10.json"
+  },
+  {
+    "name": "B: edge_on_lean_right_10",
+    "file": "B_edge_on_lean_right_10.json"
+  },
+  {
+    "name": "B: flat_horizontal",
+    "file": "B_flat_horizontal.json"
+  },
+  {
+    "name": "B: flat_nose_up_10",
+    "file": "B_flat_nose_up_10.json"
+  },
+  {
+    "name": "B: flat_nose_down_10",
+    "file": "B_flat_nose_down_10.json"
+  }
+]

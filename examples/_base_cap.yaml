@@ -1,0 +1,62 @@
+# 共通ベース設定（各プリセットが extends で継承）
+# 数値はすべて編集可能な「例」。実測値ではない。
+# source を付けない数値は assumed として出力に記録される。
+
+label: virtual   # good / bad / virtual（ビューアの表示切替用）
+
+cap:
+  mass_kg: {value: 0.0022, source: assumed, note: "一般的なPETキャップの例。要実測"}
+  outer_diameter_m: {value: 0.030, source: assumed, note: "要実測"}
+  height_m: {value: 0.015, source: assumed, note: "要実測"}
+  reference_area_m2: null          # null → 円形面積 πR²
+  center_of_mass_body_m: null      # null → 慣性近似から算出
+  inertia_tensor_body_kg_m2: null  # null → inertia_method で近似
+  inertia_method: thin_walled_cup  # thin_walled_cup / solid_cylinder / thin_disk
+  surface_orientation: body_z_is_top  # body +Z が天面(閉じた側)の外向き法線
+
+environment:
+  air_density_kg_m3: 1.204         # 20°C, 1atm
+  wind_velocity_world_m_s: [0.0, 0.0, 0.0]
+  gravity_m_s2: 9.80665
+
+field:
+  pitch_distance_m: 9.22
+  ground_z_m: 0.0
+
+simulation:
+  duration_sec: 2.0
+  output_hz: 240
+  max_step_sec: null   # null → 回転周期/20 と 1/(4·video_fps) の小さい方
+  video_fps: 240
+  solver: solve_ivp    # solve_ivp / rk4
+  method: DOP853
+  rtol: 1.0e-7
+  atol: 1.0e-9
+  quaternion_drift_gain: 10.0
+  termination:
+    stop_at_ground: true
+    stop_at_catcher_plane: true
+    max_speed_m_s: 100.0
+    max_angular_speed_rad_s: 5000.0
+
+aerodynamics:
+  model: simple
+  enable: {drag: true, lift: true, magnus: true, moments: true}
+  drag:
+    model: projected_area   # Cd_eff = cd_projected * A_proj(α) / A_ref
+    cd_projected: {value: 1.0, source: assumed, note: "平板・短円柱の Cd~1 程度という桁感。キャップ未検証"}
+  lift:
+    cl0: {value: 0.0, source: assumed, note: "表裏非対称項。未知のため0"}
+    cl_alpha_per_rad: {value: 1.4, source: assumed, note: "フリスビー文献値の桁を借用。キャップ未検証"}
+    stall_angle_deg: {value: 40.0, source: assumed}
+    post_stall: decay
+  magnus:
+    model: linear_spin_parameter   # C_M = coefficient * S
+    coefficient: {value: 1.0, source: assumed, note: "球の低スピン域 C_L≈S の桁を借用した暫定値"}
+    max_coefficient: {value: 0.5, source: assumed}
+  moments:
+    center_of_pressure_body_m: null   # null → 重心と一致（モーメント 0）
+    cm_pitch0: {value: 0.0, source: assumed}
+    cm_pitch_alpha_per_rad: {value: 0.0, source: assumed}
+    spin_damping: {value: 0.0, source: assumed}
+    tumble_damping: {value: 0.0, source: assumed}

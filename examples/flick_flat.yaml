@@ -1,0 +1,14 @@
+# 弾き投げの例: 面をほぼ水平にし、面法線まわりに自転。
+# 回転方向・回転数・初速は編集用の例（実測ではない）。
+extends: _base_cap.yaml
+name: flick_flat
+initial_state:
+  position_world_m: [0.0, 0.0, 1.0]
+  speed_kmh: 50.0
+  launch_azimuth_deg: 0.0
+  launch_elevation_deg: 2.0
+  orientation_euler_deg: [0.0, -5.0, 0.0]   # [roll, pitch, yaw]。pitch -5° = 前縁を上げる（迎角 +）
+  angular_velocity:
+    rpm: 1500
+    rotation_sense: counterclockwise
+    viewed_from_world: [-0.0872, 0.0, 0.9962]  # 傾けた面法線側（ほぼ真上）から見て反時計回り＝キャップ自身の軸まわりの自転

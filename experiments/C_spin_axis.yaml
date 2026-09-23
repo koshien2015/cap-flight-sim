@@ -1,0 +1,44 @@
+# 実験C: 回転軸（面法線 = 回転軸として自転させる）
+# 揚力を OFF にしてマグヌス力の向きを分離する。傾斜は 10°, 20°。
+# 上下軸は +Y(左)へ、左右軸は +Z(上)へ、進行方向軸は +Z(上)へ傾ける。
+name: C_spin_axis
+base_config: ../examples/overhand_drop.yaml
+base_overrides:
+  aerodynamics.enable.lift: false
+variants:
+  - name: vertical_axis_tilt0
+    overrides:
+      initial_state.face_normal_world: [0, 0.0, 1.0]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: lateral_axis_tilt0
+    overrides:
+      initial_state.face_normal_world: [0, 1.0, 0.0]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: forward_axis_tilt0
+    overrides:
+      initial_state.face_normal_world: [1.0, 0, 0.0]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: vertical_axis_tilt10
+    overrides:
+      initial_state.face_normal_world: [0, 0.173648, 0.984808]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: lateral_axis_tilt10
+    overrides:
+      initial_state.face_normal_world: [0, 0.984808, 0.173648]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: forward_axis_tilt10
+    overrides:
+      initial_state.face_normal_world: [0.984808, 0, 0.173648]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: vertical_axis_tilt20
+    overrides:
+      initial_state.face_normal_world: [0, 0.34202, 0.939693]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: lateral_axis_tilt20
+    overrides:
+      initial_state.face_normal_world: [0, 0.939693, 0.34202]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}
+  - name: forward_axis_tilt20
+    overrides:
+      initial_state.face_normal_world: [0.939693, 0, 0.34202]
+      initial_state.angular_velocity: {rpm: 1500, axis_body: [0.0, 0.0, 1.0]}

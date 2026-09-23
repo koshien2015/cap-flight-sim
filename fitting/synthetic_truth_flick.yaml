@@ -1,0 +1,11 @@
+# フィッティング検証用の「真値」条件（仮想）。この設定から合成観測を作り、
+# base.yaml の初期値から真値を回復できるかを確かめる。実測ではない。
+extends: ../examples/flick_flat.yaml
+name: synthetic_truth_flick
+aerodynamics:
+  drag:
+    cd_projected: {value: 0.6, source: assumed, note: "合成データの真値"}
+  magnus:
+    coefficient: {value: 1.6, source: assumed, note: "合成データの真値"}
+  lift:
+    cl0: {value: 0.1, source: assumed, note: "合成データの真値"}

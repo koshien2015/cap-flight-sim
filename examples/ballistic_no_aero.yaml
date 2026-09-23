@@ -1,0 +1,12 @@
+# 空気力なしの参照条件（放物運動）。捕手面イベントの動作確認用。
+extends: _base_cap.yaml
+name: ballistic_no_aero
+initial_state:
+  position_world_m: [0.0, 0.0, 1.45]
+  speed_kmh: 58.0
+  launch_azimuth_deg: 0.0      # + は投手から見て左 (+Y)
+  launch_elevation_deg: 2.0
+  face_normal_world: [0.0, 1.0, 0.0]
+  angular_velocity: {rpm: 1200, axis_body: [0.0, 0.0, 1.0]}
+aerodynamics:
+  enable: {drag: false, lift: false, magnus: false, moments: false}

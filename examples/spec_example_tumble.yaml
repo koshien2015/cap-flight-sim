@@ -1,0 +1,14 @@
+# 指示書 §12 の設定例をそのまま再現した条件。
+# orientation_euler_deg [0, 90, 0] では面法線が +X（捕手方向）を向き、
+# 回転軸 world +Y は面法線と直交する＝直径まわりのタンブリングになる点に注意。
+extends: _base_cap.yaml
+name: spec_example_tumble
+initial_state:
+  position_world_m: [0.0, 0.0, 1.45]
+  speed_kmh: 58.0
+  launch_azimuth_deg: 0.0
+  launch_elevation_deg: 2.0
+  orientation_euler_deg: [0.0, 90.0, 0.0]
+  angular_velocity:
+    rpm: 1200
+    axis_world: [0.0, 1.0, 0.0]

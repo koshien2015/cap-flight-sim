@@ -1,0 +1,729 @@
+{
+ "ballistic_no_aero": {
+  "label": "virtual",
+  "cap": {
+   "mass_kg": {
+    "value": 0.0022,
+    "source": "assumed",
+    "note": "一般的なPETキャップの例。要実測"
+   },
+   "outer_diameter_m": {
+    "value": 0.03,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "height_m": {
+    "value": 0.015,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "reference_area_m2": null,
+   "center_of_mass_body_m": null,
+   "inertia_tensor_body_kg_m2": null,
+   "inertia_method": "thin_walled_cup",
+   "surface_orientation": "body_z_is_top"
+  },
+  "environment": {
+   "air_density_kg_m3": 1.204,
+   "wind_velocity_world_m_s": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "gravity_m_s2": 9.80665
+  },
+  "field": {
+   "pitch_distance_m": 9.22,
+   "ground_z_m": 0.0
+  },
+  "simulation": {
+   "duration_sec": 2.0,
+   "output_hz": 240,
+   "max_step_sec": null,
+   "video_fps": 240,
+   "solver": "solve_ivp",
+   "method": "DOP853",
+   "rtol": 1e-07,
+   "atol": 1e-09,
+   "quaternion_drift_gain": 10.0,
+   "termination": {
+    "stop_at_ground": true,
+    "stop_at_catcher_plane": true,
+    "max_speed_m_s": 100.0,
+    "max_angular_speed_rad_s": 5000.0
+   }
+  },
+  "aerodynamics": {
+   "model": "simple",
+   "enable": {
+    "drag": false,
+    "lift": false,
+    "magnus": false,
+    "moments": false
+   },
+   "drag": {
+    "model": "projected_area",
+    "cd_projected": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "平板・短円柱の Cd~1 程度という桁感。キャップ未検証"
+    }
+   },
+   "lift": {
+    "cl0": {
+     "value": 0.0,
+     "source": "assumed",
+     "note": "表裏非対称項。未知のため0"
+    },
+    "cl_alpha_per_rad": {
+     "value": 1.4,
+     "source": "assumed",
+     "note": "フリスビー文献値の桁を借用。キャップ未検証"
+    },
+    "stall_angle_deg": {
+     "value": 40.0,
+     "source": "assumed"
+    },
+    "post_stall": "decay"
+   },
+   "magnus": {
+    "model": "linear_spin_parameter",
+    "coefficient": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "球の低スピン域 C_L≈S の桁を借用した暫定値"
+    },
+    "max_coefficient": {
+     "value": 0.5,
+     "source": "assumed"
+    }
+   },
+   "moments": {
+    "center_of_pressure_body_m": null,
+    "cm_pitch0": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "cm_pitch_alpha_per_rad": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "spin_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "tumble_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    }
+   }
+  },
+  "name": "ballistic_no_aero",
+  "initial_state": {
+   "position_world_m": [
+    0.0,
+    0.0,
+    1.45
+   ],
+   "speed_kmh": 58.0,
+   "launch_azimuth_deg": 0.0,
+   "launch_elevation_deg": 2.0,
+   "face_normal_world": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "angular_velocity": {
+    "rpm": 1200,
+    "axis_body": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   }
+  }
+ },
+ "flick_flat": {
+  "label": "virtual",
+  "cap": {
+   "mass_kg": {
+    "value": 0.0022,
+    "source": "assumed",
+    "note": "一般的なPETキャップの例。要実測"
+   },
+   "outer_diameter_m": {
+    "value": 0.03,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "height_m": {
+    "value": 0.015,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "reference_area_m2": null,
+   "center_of_mass_body_m": null,
+   "inertia_tensor_body_kg_m2": null,
+   "inertia_method": "thin_walled_cup",
+   "surface_orientation": "body_z_is_top"
+  },
+  "environment": {
+   "air_density_kg_m3": 1.204,
+   "wind_velocity_world_m_s": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "gravity_m_s2": 9.80665
+  },
+  "field": {
+   "pitch_distance_m": 9.22,
+   "ground_z_m": 0.0
+  },
+  "simulation": {
+   "duration_sec": 2.0,
+   "output_hz": 240,
+   "max_step_sec": null,
+   "video_fps": 240,
+   "solver": "solve_ivp",
+   "method": "DOP853",
+   "rtol": 1e-07,
+   "atol": 1e-09,
+   "quaternion_drift_gain": 10.0,
+   "termination": {
+    "stop_at_ground": true,
+    "stop_at_catcher_plane": true,
+    "max_speed_m_s": 100.0,
+    "max_angular_speed_rad_s": 5000.0
+   }
+  },
+  "aerodynamics": {
+   "model": "simple",
+   "enable": {
+    "drag": true,
+    "lift": true,
+    "magnus": true,
+    "moments": true
+   },
+   "drag": {
+    "model": "projected_area",
+    "cd_projected": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "平板・短円柱の Cd~1 程度という桁感。キャップ未検証"
+    }
+   },
+   "lift": {
+    "cl0": {
+     "value": 0.0,
+     "source": "assumed",
+     "note": "表裏非対称項。未知のため0"
+    },
+    "cl_alpha_per_rad": {
+     "value": 1.4,
+     "source": "assumed",
+     "note": "フリスビー文献値の桁を借用。キャップ未検証"
+    },
+    "stall_angle_deg": {
+     "value": 40.0,
+     "source": "assumed"
+    },
+    "post_stall": "decay"
+   },
+   "magnus": {
+    "model": "linear_spin_parameter",
+    "coefficient": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "球の低スピン域 C_L≈S の桁を借用した暫定値"
+    },
+    "max_coefficient": {
+     "value": 0.5,
+     "source": "assumed"
+    }
+   },
+   "moments": {
+    "center_of_pressure_body_m": null,
+    "cm_pitch0": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "cm_pitch_alpha_per_rad": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "spin_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "tumble_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    }
+   }
+  },
+  "name": "flick_flat",
+  "initial_state": {
+   "position_world_m": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "speed_kmh": 50.0,
+   "launch_azimuth_deg": 0.0,
+   "launch_elevation_deg": 2.0,
+   "orientation_euler_deg": [
+    0.0,
+    -5.0,
+    0.0
+   ],
+   "angular_velocity": {
+    "rpm": 1500,
+    "rotation_sense": "counterclockwise",
+    "viewed_from_world": [
+     -0.0872,
+     0.0,
+     0.9962
+    ]
+   }
+  }
+ },
+ "overhand_drop": {
+  "label": "virtual",
+  "cap": {
+   "mass_kg": {
+    "value": 0.0022,
+    "source": "assumed",
+    "note": "一般的なPETキャップの例。要実測"
+   },
+   "outer_diameter_m": {
+    "value": 0.03,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "height_m": {
+    "value": 0.015,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "reference_area_m2": null,
+   "center_of_mass_body_m": null,
+   "inertia_tensor_body_kg_m2": null,
+   "inertia_method": "thin_walled_cup",
+   "surface_orientation": "body_z_is_top"
+  },
+  "environment": {
+   "air_density_kg_m3": 1.204,
+   "wind_velocity_world_m_s": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "gravity_m_s2": 9.80665
+  },
+  "field": {
+   "pitch_distance_m": 9.22,
+   "ground_z_m": 0.0
+  },
+  "simulation": {
+   "duration_sec": 2.0,
+   "output_hz": 240,
+   "max_step_sec": null,
+   "video_fps": 240,
+   "solver": "solve_ivp",
+   "method": "DOP853",
+   "rtol": 1e-07,
+   "atol": 1e-09,
+   "quaternion_drift_gain": 10.0,
+   "termination": {
+    "stop_at_ground": true,
+    "stop_at_catcher_plane": true,
+    "max_speed_m_s": 100.0,
+    "max_angular_speed_rad_s": 5000.0
+   }
+  },
+  "aerodynamics": {
+   "model": "simple",
+   "enable": {
+    "drag": true,
+    "lift": true,
+    "magnus": true,
+    "moments": true
+   },
+   "drag": {
+    "model": "projected_area",
+    "cd_projected": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "平板・短円柱の Cd~1 程度という桁感。キャップ未検証"
+    }
+   },
+   "lift": {
+    "cl0": {
+     "value": 0.0,
+     "source": "assumed",
+     "note": "表裏非対称項。未知のため0"
+    },
+    "cl_alpha_per_rad": {
+     "value": 1.4,
+     "source": "assumed",
+     "note": "フリスビー文献値の桁を借用。キャップ未検証"
+    },
+    "stall_angle_deg": {
+     "value": 40.0,
+     "source": "assumed"
+    },
+    "post_stall": "decay"
+   },
+   "magnus": {
+    "model": "linear_spin_parameter",
+    "coefficient": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "球の低スピン域 C_L≈S の桁を借用した暫定値"
+    },
+    "max_coefficient": {
+     "value": 0.5,
+     "source": "assumed"
+    }
+   },
+   "moments": {
+    "center_of_pressure_body_m": null,
+    "cm_pitch0": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "cm_pitch_alpha_per_rad": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "spin_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "tumble_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    }
+   }
+  },
+  "name": "overhand_drop",
+  "initial_state": {
+   "position_world_m": [
+    0.0,
+    0.0,
+    1.45
+   ],
+   "speed_kmh": 58.0,
+   "launch_azimuth_deg": 0.0,
+   "launch_elevation_deg": 2.0,
+   "face_normal_world": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "body_x_hint_world": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "angular_velocity": {
+    "rpm": 1200,
+    "axis_world": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   }
+  }
+ },
+ "sidearm_flat": {
+  "label": "virtual",
+  "cap": {
+   "mass_kg": {
+    "value": 0.0022,
+    "source": "assumed",
+    "note": "一般的なPETキャップの例。要実測"
+   },
+   "outer_diameter_m": {
+    "value": 0.03,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "height_m": {
+    "value": 0.015,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "reference_area_m2": null,
+   "center_of_mass_body_m": null,
+   "inertia_tensor_body_kg_m2": null,
+   "inertia_method": "thin_walled_cup",
+   "surface_orientation": "body_z_is_top"
+  },
+  "environment": {
+   "air_density_kg_m3": 1.204,
+   "wind_velocity_world_m_s": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "gravity_m_s2": 9.80665
+  },
+  "field": {
+   "pitch_distance_m": 9.22,
+   "ground_z_m": 0.0
+  },
+  "simulation": {
+   "duration_sec": 2.0,
+   "output_hz": 240,
+   "max_step_sec": null,
+   "video_fps": 240,
+   "solver": "solve_ivp",
+   "method": "DOP853",
+   "rtol": 1e-07,
+   "atol": 1e-09,
+   "quaternion_drift_gain": 10.0,
+   "termination": {
+    "stop_at_ground": true,
+    "stop_at_catcher_plane": true,
+    "max_speed_m_s": 100.0,
+    "max_angular_speed_rad_s": 5000.0
+   }
+  },
+  "aerodynamics": {
+   "model": "simple",
+   "enable": {
+    "drag": true,
+    "lift": true,
+    "magnus": true,
+    "moments": true
+   },
+   "drag": {
+    "model": "projected_area",
+    "cd_projected": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "平板・短円柱の Cd~1 程度という桁感。キャップ未検証"
+    }
+   },
+   "lift": {
+    "cl0": {
+     "value": 0.0,
+     "source": "assumed",
+     "note": "表裏非対称項。未知のため0"
+    },
+    "cl_alpha_per_rad": {
+     "value": 1.4,
+     "source": "assumed",
+     "note": "フリスビー文献値の桁を借用。キャップ未検証"
+    },
+    "stall_angle_deg": {
+     "value": 40.0,
+     "source": "assumed"
+    },
+    "post_stall": "decay"
+   },
+   "magnus": {
+    "model": "linear_spin_parameter",
+    "coefficient": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "球の低スピン域 C_L≈S の桁を借用した暫定値"
+    },
+    "max_coefficient": {
+     "value": 0.5,
+     "source": "assumed"
+    }
+   },
+   "moments": {
+    "center_of_pressure_body_m": null,
+    "cm_pitch0": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "cm_pitch_alpha_per_rad": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "spin_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "tumble_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    }
+   }
+  },
+  "name": "sidearm_flat",
+  "initial_state": {
+   "position_world_m": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "speed_kmh": 58.0,
+   "launch_azimuth_deg": 0.0,
+   "launch_elevation_deg": 2.0,
+   "orientation_euler_deg": [
+    0.0,
+    -5.0,
+    0.0
+   ],
+   "angular_velocity": {
+    "rpm": 1500,
+    "rotation_sense": "clockwise",
+    "viewed_from_world": [
+     -0.0872,
+     0.0,
+     0.9962
+    ]
+   }
+  }
+ },
+ "spec_example_tumble": {
+  "label": "virtual",
+  "cap": {
+   "mass_kg": {
+    "value": 0.0022,
+    "source": "assumed",
+    "note": "一般的なPETキャップの例。要実測"
+   },
+   "outer_diameter_m": {
+    "value": 0.03,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "height_m": {
+    "value": 0.015,
+    "source": "assumed",
+    "note": "要実測"
+   },
+   "reference_area_m2": null,
+   "center_of_mass_body_m": null,
+   "inertia_tensor_body_kg_m2": null,
+   "inertia_method": "thin_walled_cup",
+   "surface_orientation": "body_z_is_top"
+  },
+  "environment": {
+   "air_density_kg_m3": 1.204,
+   "wind_velocity_world_m_s": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "gravity_m_s2": 9.80665
+  },
+  "field": {
+   "pitch_distance_m": 9.22,
+   "ground_z_m": 0.0
+  },
+  "simulation": {
+   "duration_sec": 2.0,
+   "output_hz": 240,
+   "max_step_sec": null,
+   "video_fps": 240,
+   "solver": "solve_ivp",
+   "method": "DOP853",
+   "rtol": 1e-07,
+   "atol": 1e-09,
+   "quaternion_drift_gain": 10.0,
+   "termination": {
+    "stop_at_ground": true,
+    "stop_at_catcher_plane": true,
+    "max_speed_m_s": 100.0,
+    "max_angular_speed_rad_s": 5000.0
+   }
+  },
+  "aerodynamics": {
+   "model": "simple",
+   "enable": {
+    "drag": true,
+    "lift": true,
+    "magnus": true,
+    "moments": true
+   },
+   "drag": {
+    "model": "projected_area",
+    "cd_projected": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "平板・短円柱の Cd~1 程度という桁感。キャップ未検証"
+    }
+   },
+   "lift": {
+    "cl0": {
+     "value": 0.0,
+     "source": "assumed",
+     "note": "表裏非対称項。未知のため0"
+    },
+    "cl_alpha_per_rad": {
+     "value": 1.4,
+     "source": "assumed",
+     "note": "フリスビー文献値の桁を借用。キャップ未検証"
+    },
+    "stall_angle_deg": {
+     "value": 40.0,
+     "source": "assumed"
+    },
+    "post_stall": "decay"
+   },
+   "magnus": {
+    "model": "linear_spin_parameter",
+    "coefficient": {
+     "value": 1.0,
+     "source": "assumed",
+     "note": "球の低スピン域 C_L≈S の桁を借用した暫定値"
+    },
+    "max_coefficient": {
+     "value": 0.5,
+     "source": "assumed"
+    }
+   },
+   "moments": {
+    "center_of_pressure_body_m": null,
+    "cm_pitch0": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "cm_pitch_alpha_per_rad": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "spin_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    },
+    "tumble_damping": {
+     "value": 0.0,
+     "source": "assumed"
+    }
+   }
+  },
+  "name": "spec_example_tumble",
+  "initial_state": {
+   "position_world_m": [
+    0.0,
+    0.0,
+    1.45
+   ],
+   "speed_kmh": 58.0,
+   "launch_azimuth_deg": 0.0,
+   "launch_elevation_deg": 2.0,
+   "orientation_euler_deg": [
+    0.0,
+    90.0,
+    0.0
+   ],
+   "angular_velocity": {
+    "rpm": 1200,
+    "axis_world": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   }
+  }
+ }
+}

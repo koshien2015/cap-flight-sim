@@ -1,0 +1,9 @@
+# 係数表モデルの例。tables/example_coefficients.csv は簡易モデルを tabulate で書き出したもの（source=assumed）。
+# CFD・風洞の結果は同じスキーマの CSV/Parquet に変換して path を差し替える。
+extends: overhand_drop.yaml
+name: lookup_table_example
+aerodynamics:
+  model: lookup_table
+  lookup_table:
+    path: tables/example_coefficients.csv
+    out_of_range: clamp   # clamp / nearest / error

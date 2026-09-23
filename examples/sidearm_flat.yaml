@@ -1,0 +1,9 @@
+# サイドスロー（野球投げ・面水平）の例: 弾き投げと回転方向が逆という仮説を置いた条件。
+extends: flick_flat.yaml
+name: sidearm_flat
+initial_state:
+  speed_kmh: 58.0
+  angular_velocity:
+    rpm: 1500
+    rotation_sense: clockwise
+    viewed_from_world: [-0.0872, 0.0, 0.9962]  # 傾けた面法線側（ほぼ真上）から見て時計回り
