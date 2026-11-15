@@ -38,6 +38,15 @@ describe('config parity', () => {
   }
 });
 
+describe('environment viscosity', () => {
+  it('rejects non-positive or non-finite dynamic viscosity like Python', () => {
+    const raw = derivatives.cases[0].raw as Record<string, unknown>;
+    for (const bad of [0, -1e-5, 'nan']) {
+      expect(() => configFromRaw({ ...raw, environment: { dynamic_viscosity_pa_s: bad } }), String(bad)).toThrow();
+    }
+  });
+});
+
 describe('derivative & aero parity', () => {
   for (const c of derivatives.cases) {
     const cfg = configFromRaw(c.raw as Record<string, unknown>);

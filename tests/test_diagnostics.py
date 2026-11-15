@@ -1,15 +1,15 @@
 """Issue #1 Phase 1: 姿勢安定性の診断値（力学計算は変えない）。"""
 
-import copy
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from cap_flight_sim.aerodynamics.factory import build_aerodynamic_model
-from cap_flight_sim.config import ConfigError, apply_overrides, config_from_dict
+from cap_flight_sim.config import ConfigError, apply_overrides, config_from_dict, load_config
 from cap_flight_sim.coordinates import quat_from_face_normal, world_to_body
 from cap_flight_sim.models import RigidBodyState
-from cap_flight_sim.outputs.serializers import timeseries_dataframe
+from cap_flight_sim.outputs.serializers import attitude_diagnostics, timeseries_dataframe
 from cap_flight_sim.simulation import run_simulation
 
 MOMENTS_ALL = {
@@ -59,7 +59,7 @@ def test_default_viscosity_is_air_at_20c(base_raw):
     assert config_from_dict(base_raw).environment.dynamic_viscosity_pa_s == pytest.approx(1.81e-5)
 
 
-@pytest.mark.parametrize("value", [0.0, -1e-5])
+@pytest.mark.parametrize("value", [0.0, -1e-5, float("nan")])
 def test_viscosity_must_be_positive(base_raw, value):
     with pytest.raises(ConfigError):
         config_from_dict(apply_overrides(base_raw, {"environment.dynamic_viscosity_pa_s": value}))
@@ -86,14 +86,16 @@ def test_each_moment_component_equals_single_term_model(base_raw, component, onl
     state = _state([14.0, -1.0, -2.0])
     full = _evaluate(apply_overrides(base_raw, {"aerodynamics.moments": MOMENTS_ALL}), state)
     single = _evaluate(apply_overrides(base_raw, {"aerodynamics.moments": {**MOMENTS_NONE, **only}}), state)
-    assert np.allclose(full.moment_components_body_nm[component], single.moment_body_nm, rtol=1e-12, atol=1e-20)
+    # 他の項が厳密に 0 なので、単独モデルの合計とビット単位で一致する
+    assert np.array_equal(full.moment_components_body_nm[component], single.moment_body_nm)
     assert np.any(single.moment_body_nm != 0.0)
 
 
 def test_moment_components_sum_to_total(base_raw):
+    """合計の足し算の順序（cp → pitch → damping）を変えていないことをビット単位で確かめる。"""
     res = _evaluate(apply_overrides(base_raw, {"aerodynamics.moments": MOMENTS_ALL}), _state([14.0, -1.0, -2.0]))
-    total = sum(res.moment_components_body_nm.values())
-    assert np.allclose(total, res.moment_body_nm, rtol=1e-12, atol=1e-20)
+    c = res.moment_components_body_nm
+    assert np.array_equal(((np.zeros(3) + c["center_of_pressure"]) + c["pitch"]) + c["damping"], res.moment_body_nm)
 
 
 def test_moment_components_zero_when_moments_disabled(base_raw):
@@ -132,20 +134,28 @@ def test_spin_axis_tilt_is_nan_without_rotation(base_raw):
     assert np.isnan(df["spin_axis_tilt_deg"].iloc[0])
 
 
-def test_lookup_table_reports_reynolds_and_table_moment(tmp_path):
-    from pathlib import Path
-
-    from cap_flight_sim.config import load_config
-
+def test_lookup_table_reports_reynolds_and_table_moment():
     cfg = load_config(Path(__file__).resolve().parents[1] / "examples/lookup_table_example.yaml")
     model = build_aerodynamic_model(cfg.aerodynamics, cfg.cap)
     res = model.evaluate(_state([15.0, 0.0, -1.0]), cfg.cap, cfg.environment)
     assert res.diagnostics["reynolds_number"] > 0
     assert set(res.moment_components_body_nm) == {"table"}
     assert np.array_equal(res.moment_components_body_nm["table"], res.moment_body_nm)
+    assert res.moment_components_body_nm["table"] is not res.moment_body_nm
+
+    still = model.evaluate(_state([0.0, 0.0, 0.0]), cfg.cap, cfg.environment)
+    assert still.diagnostics["reynolds_number"] == 0.0
+    assert np.array_equal(still.moment_components_body_nm["table"], np.zeros(3))
 
 
-def test_base_raw_is_not_mutated(base_raw):
-    before = copy.deepcopy(base_raw)
-    apply_overrides(base_raw, {"aerodynamics.moments": MOMENTS_ALL})
-    assert base_raw == before
+def test_attitude_diagnostics_with_off_diagonal_inertia():
+    inertia = np.array([[3.0, 0.4, -0.2], [0.4, 2.5, 0.3], [-0.2, 0.3, 4.0]]) * 1e-7
+    omega = np.array([12.0, -7.0, 90.0])
+    d = attitude_diagnostics(omega, inertia)
+    momentum = inertia @ omega
+    assert d["angular_momentum_normal"] == momentum[2]
+    assert d["angular_momentum_inplane"] == pytest.approx(np.hypot(momentum[0], momentum[1]), rel=1e-15)
+
+
+def test_spin_axis_tilt_for_reverse_spin_is_180():
+    assert attitude_diagnostics(np.array([0.0, 0.0, -5.0]), np.eye(3))["spin_axis_tilt_deg"] == pytest.approx(180.0)

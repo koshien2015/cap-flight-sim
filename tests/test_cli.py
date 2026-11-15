@@ -40,7 +40,12 @@ def test_compare_accepts_result_without_phase1_columns(tmp_path):
     legacy.write_text(json.dumps(doc), encoding="utf-8")
     assert main(["compare", "--runs", str(legacy), "--output", str(tmp_path / "cmp")]) == 0
     plots = {p.name for p in (tmp_path / "cmp/plots").glob("*.png")}
-    assert "01_top_xy.png" in plots and "09_attitude.png" not in plots
+    assert "01_top_xy.png" in plots
+    assert not plots & {"09_attitude.png", "10_moments.png", "11_reynolds.png"}
+    # 古い結果と新しい結果を一緒に比べても、新しい方だけで診断図を描く
+    assert main(["compare", "--runs", str(legacy), str(out / "result.json"), "--output", str(tmp_path / "mixed")]) == 0
+    mixed = {p.name for p in (tmp_path / "mixed/plots").glob("*.png")}
+    assert {"09_attitude.png", "10_moments.png", "11_reynolds.png"} <= mixed
 
 
 def test_sweep_and_compare(tmp_path):

@@ -255,7 +255,7 @@ simulation:
 | 列 | 内容 |
 |---|---|
 | `omega_normal` / `omega_inplane` | 角速度の面法線（body Z）成分と、面内成分の大きさ（タンブリング） [rad/s] |
-| `spin_axis_tilt_deg` | 角速度ベクトルと面法線のなす角。無回転では定義できないので空欄 |
+| `spin_axis_tilt_deg` | 角速度ベクトルと面法線のなす角。角速度が厳密に 0 のときだけ空欄（数値誤差程度のごく小さな回転でも角度は出る） |
 | `angular_momentum_normal` / `angular_momentum_inplane` | 角運動量 Iω の面法線成分と面内成分の大きさ [kg·m²/s] |
 | `moment_<項>_x/y/z` | モーメントの内訳（body 座標）。簡易モデルは `center_of_pressure`（圧力中心のずれ）・`pitch`（ピッチ係数）・`damping`（回転減衰）、係数表モデルは `table`。合計は `moment_x/y/z` |
 | `reynolds_number` | Re = ρ\|u\|D/μ（u は対気速度、D は外径）。μ は `environment.dynamic_viscosity_pa_s`（既定 1.81e-5 Pa·s、20°C の空気）。係数には使っていない |
