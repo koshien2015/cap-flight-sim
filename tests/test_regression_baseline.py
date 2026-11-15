@@ -71,3 +71,22 @@ def test_compare_detects_event_and_summary_changes(baseline_module, expected):
     problems = baseline_module.compare(expected, mutated)
     assert any("event" in p for p in problems)
     assert any("lateralBreakFromLaunchLineM" in p for p in problems)
+
+
+@pytest.mark.parametrize("where", ["frame", "event", "summary"])
+def test_compare_reports_nan(baseline_module, expected, where):
+    mutated = copy.deepcopy(expected)
+    case = mutated["cases"][0]
+    if where == "frame":
+        case["frames"][-1]["position"][0] = float("nan")
+    elif where == "event":
+        case["events"][-1]["normal"][0] = float("nan")
+    else:
+        case["summary"]["flightTimeSec"] = float("nan")
+    assert baseline_module.compare(expected, mutated)
+
+
+def test_compare_reports_missing_event_state(baseline_module, expected):
+    mutated = copy.deepcopy(expected)
+    del mutated["cases"][0]["events"][-1]["normal"]
+    assert any("記録項目" in p for p in baseline_module.compare(expected, mutated))

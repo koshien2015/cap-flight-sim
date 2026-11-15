@@ -8,8 +8,8 @@ CLI・実験・フィッティングが使う既定の積分器（solve_ivp / DO
     uv run python scripts/update_regression_baseline.py --write   # 基準を書き換える（変更理由を説明できるときだけ）
 
 tests/test_regression_baseline.py が許容誤差 TOLERANCES で照合する。
-許容誤差は浮動小数の揺らぎ（初期位置 1e-12 m の摂動で ≤3e-11）より十分大きく、
-物理・積分設定の変更（例: spec_example_tumble は最大刻み半減で面法線が ~7e-5 変わる）より十分小さい値にした。
+許容誤差は、初速・回転数を相対 1e-12 摂動したときの着地状態の変化（≤6e-11）より十分大きく、
+係数を 1e-4 動かしたときの変化（位置で ~1e-4 m）より十分小さい値にした。
 """
 
 from __future__ import annotations
@@ -31,15 +31,17 @@ from cap_flight_sim.simulation import Frame, run_simulation  # noqa: E402
 
 BASELINE_PATH = ROOT / "tests/regression/normal_pitches_baseline.json"
 
-# 通常球の代表プリセット。低スピン域（ナックル想定）は Phase 3〜4 で変わり得るため含めない。
-PRESETS = (
-    "overhand_drop",
-    "flick_flat",
-    "sidearm_flat",
-    "spec_example_tumble",
-    "ballistic_no_aero",
-    "lookup_table_example",
-)
+# 通常球の代表プリセットと、基準計算時の上書き。低スピン域（ナックル想定）は Phase 3〜4 で変わり得るため含めない。
+# spec_example_tumble（直径まわりのタンブリング）は DOP853 だと初速を相対 1e-12 ずらすだけで着地状態が ~1e-4 変わり、
+# OS 間でも同程度ずれる（積分器の刻み制御の揺らぎ）。固定刻み RK4 では ~5e-11 に収まるため、RK4 で固定する。
+PRESETS: dict[str, dict[str, Any]] = {
+    "overhand_drop": {},
+    "flick_flat": {},
+    "sidearm_flat": {},
+    "spec_example_tumble": {"simulation.solver": "rk4"},
+    "ballistic_no_aero": {},
+    "lookup_table_example": {},
+}
 OUTPUT_HZ = 60  # 出力の間引きのみ。積分は dense output から補間するので軌道は変わらない
 
 # 量ごとの絶対許容誤差（SI 単位。面法線は単位ベクトル成分）
@@ -50,7 +52,11 @@ TOLERANCES: dict[str, float] = {
     "normal": 1e-7,
     "omegaWorld": 1e-5,
     "summary": 1e-7,
+    # arccos は 0° 付近で条件が悪く、内積が 1 ulp ずれるだけで ~1e-6° 変わるため別枠にする
+    "summaryAngleDeg": 1e-5,
 }
+ANGLE_SUMMARY_KEYS = ("faceNormalChangeDeg", "maxFaceNormalChangeDeg")
+STATE_KEYS = ("timeSec", "position", "velocity", "normal", "omegaWorld")
 SUMMARY_KEYS = (
     "flightTimeSec",
     "lateralBreakFromLaunchLineM",
@@ -74,13 +80,15 @@ def _state(frame: Frame) -> dict[str, list[float]]:
     }
 
 
-def run_case(name: str) -> dict[str, Any]:
-    raw = apply_overrides(load_raw_config(ROOT / "examples" / f"{name}.yaml"), {"simulation.output_hz": OUTPUT_HZ})
+def run_case(name: str, overrides: dict[str, Any]) -> dict[str, Any]:
+    raw = apply_overrides(load_raw_config(ROOT / "examples" / f"{name}.yaml"),
+                          {**overrides, "simulation.output_hz": OUTPUT_HZ})
     result = run_simulation(config_from_dict(raw, name=name))
     summary = compute_summary(result)
+    settings = result.config.settings
     return {
         "name": name,
-        "solver": f"{result.config.settings.solver}/{result.config.settings.method}",
+        "solver": "rk4" if settings.solver == "rk4" else f"{settings.solver}/{settings.method}",
         "terminationReason": result.termination_reason,
         "events": [
             {"type": e["type"], "timeSec": float(e["timeSec"]), **(_state(e["frame"]) if "frame" in e else {})}
@@ -96,13 +104,21 @@ def build_baseline() -> dict[str, Any]:
         "generator": "scripts/update_regression_baseline.py",
         "note": "通常球の凍結回帰基準。物理を変えて差が出たら、差と根拠を示したうえで --write で更新する",
         "outputHz": OUTPUT_HZ,
-        "cases": [run_case(name) for name in PRESETS],
+        "cases": [run_case(name, overrides) for name, overrides in PRESETS.items()],
     }
 
 
 def _max_abs(a: Any, b: Any) -> float:
-    return float(np.max(np.abs(np.asarray(a, dtype=float) - np.asarray(b, dtype=float))))
+    """最大絶対差。形が違う・NaN を含むときは inf を返し、必ず許容誤差超えとして報告させる。"""
+    a_arr, b_arr = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    if a_arr.shape != b_arr.shape:
+        return float("inf")
+    diff = np.abs(a_arr - b_arr)
+    return float(np.max(diff)) if np.all(np.isfinite(diff)) else float("inf")
 
+
+def _exceeds(d: float, tol: float) -> bool:
+    return not (d <= tol)  # NaN でも True になる書き方
 
 def compare(expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
     """基準との差のうち許容誤差を超えたものを人が読める行で返す（空なら一致）。"""
@@ -127,25 +143,28 @@ def _compare_case(exp: dict[str, Any], act: dict[str, Any]) -> list[str]:
         for e, a in zip(exp["events"], act["events"]):
             problems.extend(_compare_fields(f"event {e['type']}", e, a))
     for key in SUMMARY_KEYS:
-        if (d := abs(exp["summary"][key] - act["summary"][key])) > TOLERANCES["summary"]:
+        tol = TOLERANCES["summaryAngleDeg" if key in ANGLE_SUMMARY_KEYS else "summary"]
+        if _exceeds(d := _max_abs(exp["summary"][key], act["summary"][key]), tol):
             problems.append(f"summary.{key}: {exp['summary'][key]:.9g} → {act['summary'][key]:.9g} (|Δ|={d:.2e})")
     if len(exp["frames"]) != len(act["frames"]):
         problems.append(f"フレーム数: {len(exp['frames'])} → {len(act['frames'])}")
         return problems
-    for key in ("timeSec", "position", "velocity", "normal", "omegaWorld"):
+    for key in STATE_KEYS:
         d = _max_abs([f[key] for f in exp["frames"]], [f[key] for f in act["frames"]])
-        if d > TOLERANCES[key]:
+        if _exceeds(d, TOLERANCES[key]):
             problems.append(f"frames.{key}: max|Δ|={d:.2e} > {TOLERANCES[key]:.0e}")
     return problems
 
 
 def _compare_fields(label: str, exp: dict[str, Any], act: dict[str, Any]) -> list[str]:
+    exp_keys = {k for k in STATE_KEYS if k in exp}
+    act_keys = {k for k in STATE_KEYS if k in act}
+    if exp_keys != act_keys:
+        return [f"{label}: 記録項目が違う {sorted(exp_keys)} → {sorted(act_keys)}"]
     problems = []
-    for key in ("timeSec", "position", "velocity", "normal", "omegaWorld"):
-        if key not in exp:
-            continue
+    for key in sorted(exp_keys):
         d = _max_abs(exp[key], act[key])
-        if d > TOLERANCES[key]:
+        if _exceeds(d, TOLERANCES[key]):
             problems.append(f"{label}.{key}: {exp[key]} → {act[key]} (max|Δ|={d:.2e})")
     return problems
 
