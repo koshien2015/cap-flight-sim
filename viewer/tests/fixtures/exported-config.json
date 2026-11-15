@@ -25,6 +25,11 @@
   },
   "environment": {
    "air_density_kg_m3": 1.204,
+   "dynamic_viscosity_pa_s": {
+    "value": 0.0000181,
+    "source": "literature",
+    "note": "20°C の空気。Reynolds 数の診断値にのみ使い、力学計算には使わない"
+   },
    "wind_velocity_world_m_s": [
     0,
     0,

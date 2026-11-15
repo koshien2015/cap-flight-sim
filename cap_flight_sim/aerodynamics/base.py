@@ -9,6 +9,7 @@
     横滑り角 β : β = atan2(u_y, u_x)  面内での進行方向（body X から body Y へ測る）。
              軸対称なキャップでは β はスピンとともに回転し、空気力には直接効かない。
     法線角 θn : n と相対風（-u）のなす角。θn = 90° がエッジオン。
+    Reynolds 数 Re = ρ|u|D/μ（D = 外径）。診断値として出すだけで、係数には使わない。
 
 空力座標（モーメント・ルックアップテーブル用）:
     e_drag  = -û                     （抗力方向）
@@ -51,6 +52,7 @@ class FlowGeometry:
     spin_parameter: float
     is_stationary: bool
     is_face_on: bool
+    reynolds_number: float = 0.0  # ρ|u|D/μ（診断値。係数には使わない）
 
 
 def compute_flow_geometry(state: RigidBodyState, cap: CapParameters, environment: Environment) -> FlowGeometry:
@@ -107,6 +109,7 @@ def compute_flow_geometry(state: RigidBodyState, cap: CapParameters, environment
         spin_parameter=spin_parameter,
         is_stationary=False,
         is_face_on=bool(face_on),
+        reynolds_number=environment.air_density_kg_m3 * speed * cap.outer_diameter_m / environment.dynamic_viscosity_pa_s,
     )
 
 

@@ -16,6 +16,7 @@ cap:
 
 environment:
   air_density_kg_m3: 1.204         # 20°C, 1atm
+  dynamic_viscosity_pa_s: {value: 1.81e-5, source: literature, note: "20°C の空気。Reynolds 数の診断値にのみ使い、力学計算には使わない"}
   wind_velocity_world_m_s: [0.0, 0.0, 0.0]
   gravity_m_s2: 9.80665
 

@@ -7,6 +7,7 @@
     M_cp   = (r_cp - r_com) × F_aero            空力中心と重心のずれ
     M_pitch = q A_ref D Cm(α) · e_pitch         姿勢の安定化/不安定化
     M_damp = -½ρ|u| A_ref D R (c_spin ω_n + c_tumble ω_t)  回転抗力
+    3項の内訳は moment_components_body_nm（center_of_pressure / pitch / damping）に出す
 """
 
 from __future__ import annotations
@@ -133,7 +134,10 @@ class SimpleAerodynamicModel:
         magnus = qa * cm_coef * magnus_direction(flow) if self.toggles.magnus else zero
 
         force = drag + lift + magnus
-        moment, cm_pitch = self._moment_body(state, cap, environment, flow, force) if self.toggles.moments else (zero, 0.0)
+        if self.toggles.moments:
+            moment, cm_pitch, components = self._moment_body(state, cap, environment, flow, force)
+        else:
+            moment, cm_pitch, components = zero, 0.0, _zero_moment_components()
 
         return AerodynamicResult(
             force_world_n=force,
@@ -142,6 +146,7 @@ class SimpleAerodynamicModel:
             lift_world_n=lift,
             magnus_world_n=magnus,
             coefficients={"cd": cd, "cl": cl, "cy": cm_coef, "cm_pitch": cm_pitch},
+            moment_components_body_nm=components,
             diagnostics={
                 "speed_m_s": flow.speed_m_s,
                 "dynamic_pressure_pa": flow.dynamic_pressure_pa,
@@ -150,6 +155,7 @@ class SimpleAerodynamicModel:
                 "normal_to_wind_deg": flow.normal_to_wind_deg,
                 "projected_area_m2": area_proj,
                 "spin_parameter": flow.spin_parameter,
+                "reynolds_number": flow.reynolds_number,
                 "lift_degenerate_face_on": flow.is_face_on,
                 "stationary": False,
             },
@@ -157,17 +163,21 @@ class SimpleAerodynamicModel:
 
     def _moment_body(
         self, state: RigidBodyState, cap: CapParameters, environment: Environment, flow, force_world: np.ndarray
-    ) -> tuple[np.ndarray, float]:
+    ) -> tuple[np.ndarray, float, dict[str, np.ndarray]]:
+        """(合計, Cm_pitch, 内訳)。合計の足し算の順序は内訳導入前と同じに保つ（軌道を変えないため）。"""
         p = self.moments
         q = state.orientation_body_to_world
         moment = np.zeros(3)
+        cp_moment = np.zeros(3)
         if p.center_of_pressure_body_m is not None:
             arm = np.asarray(p.center_of_pressure_body_m) - cap.center_of_mass_body_m
-            moment = moment + np.cross(arm, world_to_body(q, force_world))
+            cp_moment = np.cross(arm, world_to_body(q, force_world))
+            moment = moment + cp_moment
 
         cm_pitch = self.pitch_moment_coefficient(flow.angle_of_attack_rad)
         qad = flow.dynamic_pressure_pa * cap.reference_area_m2 * cap.outer_diameter_m
-        moment = moment + qad * cm_pitch * flow.pitch_axis_body
+        pitch_moment = qad * cm_pitch * flow.pitch_axis_body
+        moment = moment + pitch_moment
 
         omega = state.angular_velocity_body_rad_s
         omega_n = np.array([0.0, 0.0, omega[2]])
@@ -176,8 +186,9 @@ class SimpleAerodynamicModel:
             0.5 * environment.air_density_kg_m3 * flow.speed_m_s
             * cap.reference_area_m2 * cap.outer_diameter_m * cap.radius_m
         )
-        moment = moment - damp_scale * (p.spin_damping * omega_n + p.tumble_damping * omega_t)
-        return moment, cm_pitch
+        damping = damp_scale * (p.spin_damping * omega_n + p.tumble_damping * omega_t)
+        moment = moment - damping
+        return moment, cm_pitch, {"center_of_pressure": cp_moment, "pitch": pitch_moment, "damping": -damping}
 
     def describe(self) -> dict[str, Any]:
         return {
@@ -208,14 +219,19 @@ def projected_area_m2(alpha_rad: float, cap: CapParameters) -> float:
     )
 
 
+def _zero_moment_components() -> dict[str, np.ndarray]:
+    return {"center_of_pressure": np.zeros(3), "pitch": np.zeros(3), "damping": np.zeros(3)}
+
+
 def _stationary_result() -> AerodynamicResult:
     zero = np.zeros(3)
     return AerodynamicResult(
         force_world_n=zero, moment_body_nm=zero, drag_world_n=zero, lift_world_n=zero, magnus_world_n=zero,
         coefficients={"cd": 0.0, "cl": 0.0, "cy": 0.0, "cm_pitch": 0.0},
+        moment_components_body_nm=_zero_moment_components(),
         diagnostics={
             "speed_m_s": 0.0, "dynamic_pressure_pa": 0.0, "angle_of_attack_deg": 0.0, "sideslip_deg": 0.0,
             "normal_to_wind_deg": float("nan"), "projected_area_m2": 0.0, "spin_parameter": 0.0,
-            "lift_degenerate_face_on": False, "stationary": True,
+            "reynolds_number": 0.0, "lift_degenerate_face_on": False, "stationary": True,
         },
     )
