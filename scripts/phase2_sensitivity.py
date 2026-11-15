@@ -66,7 +66,10 @@ class Case:
 
 def build_raw(case: Case) -> dict[str, Any]:
     base = load_raw_config(ROOT / "examples/overhand_drop.yaml")
-    com_z = config_from_dict(base).cap.center_of_mass_body_m[2]
+    com = config_from_dict(base).cap.center_of_mass_body_m
+    if case.pitch == "straight" and (case.tilt_deg != 30.0 or case.yaw_deg != 0.0
+                                     or case.spin_axis_body != (0.0, 0.0, 1.0) or any(case.omega_extra_world)):
+        raise ValueError("straight は overhand_drop の姿勢・回転軸を使う。tilt/yaw/spin_axis/omega_extra は指定できない")
     overrides: dict[str, Any] = {
         "simulation.solver": "rk4",
         "simulation.fixed_step_sec": case.fixed_step_sec,
@@ -77,7 +80,7 @@ def build_raw(case: Case) -> dict[str, Any]:
         "aerodynamics.moments.spin_damping": case.spin_damping,
         "aerodynamics.moments.tumble_damping": case.tumble_damping,
         "aerodynamics.moments.center_of_pressure_body_m": (
-            None if case.cp_dz_mm is None else [0.0, 0.0, float(com_z + case.cp_dz_mm * 1e-3)]
+            None if case.cp_dz_mm is None else [float(x) for x in com + np.array([0.0, 0.0, case.cp_dz_mm * 1e-3])]
         ),
     }
     if case.pitch == "knuckle":
@@ -118,14 +121,28 @@ def value_at(xs: np.ndarray, ys: np.ndarray, x: float) -> float:
     return float(np.interp(x, xs, np.asarray(ys, dtype=float)))
 
 
-def swing_period_sec(t: np.ndarray, angle: np.ndarray) -> float:
-    """角度の時系列から揺れの周期を推定する（極値の間隔の平均×2）。極値が2つ未満なら NaN。"""
+def extremum_period_sec(t: np.ndarray, angle: np.ndarray, min_excursion_deg: float = 0.1) -> float:
+    """角度の極値の間隔の平均×2。揺れなら揺れの周期、縦に回り続けるなら（仰角が ±90° で折り返すため）半回転の時間×2。
+
+    隣り合う極値の差が min_excursion_deg 未満のものは数値誤差として無視する。極値が2つ未満なら NaN。
+    """
     a = np.asarray(angle, dtype=float)
     d = np.diff(a)
     idx = np.where((d[:-1] > 0) & (d[1:] <= 0) | (d[:-1] < 0) & (d[1:] >= 0))[0] + 1
-    if idx.size < 2:
+    kept: list[int] = []
+    for i in idx:
+        if abs(a[i] - a[kept[-1] if kept else 0]) >= min_excursion_deg:
+            kept.append(int(i))
+    if len(kept) < 2:
         return float("nan")
-    return float(2.0 * np.mean(np.diff(np.asarray(t, dtype=float)[idx])))
+    return float(2.0 * np.mean(np.diff(np.asarray(t, dtype=float)[kept])))
+
+
+def pitch_rotation_deg(normals: np.ndarray) -> float:
+    """縦（X-Z 面内）の回転量。面法線の向き atan2(n_z, n_x) を連続化した最大振れ幅。180° を超えれば縦に回っている。"""
+    n = np.asarray(normals, dtype=float)
+    angle = np.degrees(np.unwrap(np.arctan2(n[:, 2], n[:, 0])))
+    return float(np.max(np.abs(angle - angle[0])))
 
 
 def max_angle_change_deg(normals: np.ndarray) -> float:
@@ -152,7 +169,10 @@ def run_case(case: Case) -> dict[str, Any]:
         "landing_x_m": float(pos[-1, 0]),
         "max_normal_change_deg": max_angle_change_deg(normals),
         "max_omega_inplane_rad_s": float(np.max(np.hypot(omega[:, 0], omega[:, 1]))),
-        "swing_period_s": swing_period_sec(t, elevation),
+        "extremum_period_s": extremum_period_sec(t, elevation),
+        "pitch_rotation_deg": pitch_rotation_deg(normals),
+        "reynolds_min": float(min(f.aero.diagnostics["reynolds_number"] for f in frames)),
+        "reynolds_max": float(max(f.aero.diagnostics["reynolds_number"] for f in frames)),
     }
     for ts in TIMES_SEC:
         row[f"y_mm@{ts}s"] = value_at(t, pos[:, 1], ts) * 1e3
@@ -166,10 +186,10 @@ def run_case(case: Case) -> dict[str, Any]:
     return {"row": row, "series": series}
 
 
-def pitch_stiffness(case: Case, delta_deg: float = 0.2) -> dict[str, float]:
-    """面を相対風に正対させた姿勢のまわりで、ピッチモーメントの傾き（剛性）を差分で求める。
+def pitch_moment_world_y(case: Case, offsets_deg) -> list[float]:
+    """面法線を相対風（初速方向）から仰角方向に offset だけずらした姿勢での、world Y まわりの空力モーメント。
 
-    返り値の k [N·m/rad] が正なら復元（安定）、負なら不安定。周期の線形予測 T = 2π√(I_t / k) も返す。
+    + は面法線を下げる向き。offset > 0 で M > 0 なら姿勢を戻す（復元）。
     """
     from cap_flight_sim.aerodynamics.factory import build_aerodynamic_model
     from cap_flight_sim.models import RigidBodyState
@@ -178,17 +198,22 @@ def pitch_stiffness(case: Case, delta_deg: float = 0.2) -> dict[str, float]:
     model = build_aerodynamic_model(cfg.aerodynamics, cfg.cap)
     v = cfg.initial_state.velocity_world_m_s
     wind_elev = float(np.degrees(np.arctan2(v[2], np.hypot(v[0], v[1]))))
+    out = []
+    for offset in offsets_deg:
+        q = euler_deg_to_quat(np.array([0.0, 90.0 - (wind_elev + offset), 0.0]))
+        res = model.evaluate(RigidBodyState(0.0, np.zeros(3), v, q, np.zeros(3)), cfg.cap, cfg.environment)
+        out.append(float((quat_to_matrix(q) @ res.moment_body_nm)[1]))
+    return out
 
-    def moment_y(offset_deg: float) -> float:
-        q = euler_deg_to_quat(np.array([0.0, 90.0 - (wind_elev + offset_deg), 0.0]))
-        state = RigidBodyState(0.0, np.zeros(3), v, q, np.zeros(3))
-        res = model.evaluate(state, cfg.cap, cfg.environment)
-        return float((quat_to_matrix(q) @ res.moment_body_nm)[1])  # world Y まわり（+ で面法線が下がる）
 
-    # 面法線の仰角が +δ のとき、復元なら面法線を下げる向き（world +Y まわり正）のモーメント
-    m_plus, m_minus = moment_y(delta_deg), moment_y(-delta_deg)
+def pitch_stiffness(case: Case, delta_deg: float = 0.2) -> dict[str, float]:
+    """面を相対風に正対させた姿勢のまわりで、ピッチモーメントの傾き（剛性）を差分で求める。
+
+    返り値の k [N·m/rad] が正なら復元（安定）、負なら不安定。周期の線形予測 T = 2π√(I_t / k) も返す。
+    """
+    m_plus, m_minus = pitch_moment_world_y(case, (delta_deg, -delta_deg))
     k = (m_plus - m_minus) / (2.0 * np.radians(delta_deg))
-    i_t = float(cfg.cap.inertia_tensor_body_kg_m2[0, 0])
+    i_t = float(config_from_dict(build_raw(case)).cap.inertia_tensor_body_kg_m2[0, 0])
     return {
         "moment_plus_nm": m_plus, "moment_minus_nm": m_minus, "stiffness_nm_per_rad": float(k),
         "transverse_inertia_kg_m2": i_t,
@@ -263,14 +288,24 @@ def main() -> int:
     table.to_csv(args.output / "runs.csv", index=False)
     (args.output / "series.json").write_text(
         json.dumps({c.name: r["series"] for c, r in zip(cases, results)}), encoding="utf-8")
-    checks = {
-        f"{name}/delta={d}deg": pitch_stiffness(c, d) for d in (0.2, 0.02) for name, c in {
-            "cp_aft_2.5mm": Case(name="s", cp_dz_mm=-2.5),
-            "cp_fwd_2.5mm": Case(name="s", cp_dz_mm=2.5),
-            "cm_alpha_+0.05": Case(name="s", cm_pitch_alpha_per_rad=0.05),
-            "cm_alpha_-0.05": Case(name="s", cm_pitch_alpha_per_rad=-0.05),
-        }.items()
+    check_cases = {
+        "cp_aft_2.5mm": Case(name="s", cp_dz_mm=-2.5),
+        "cp_fwd_2.5mm": Case(name="s", cp_dz_mm=2.5),
+        "cm_alpha_+0.05": Case(name="s", cm_pitch_alpha_per_rad=0.05),
+        "cm_alpha_-0.05": Case(name="s", cm_pitch_alpha_per_rad=-0.05),
     }
+    checks: dict[str, Any] = {}
+    for name, c in check_cases.items():
+        coarse, fine = pitch_stiffness(c, 0.2), pitch_stiffness(c, 0.02)
+        # 差分の幅を 1/10 にしてもモーメントが 1/10 にならなければ、正対で不連続（剛性は定義できない）
+        continuous = abs(fine["moment_plus_nm"]) < 0.2 * abs(coarse["moment_plus_nm"])
+        checks[name] = {"delta=0.2deg": coarse, "delta=0.02deg": fine, "continuous_at_face_on": bool(continuous)}
+        if not continuous:
+            for v in (coarse, fine):
+                v["stiffness_nm_per_rad"] = v["linear_period_s"] = None
+    offsets = [0.5, 1, 2, 5, 8, 10, 11, 12, 13, 15, 20, 28, 40, 60]
+    checks["moment_vs_offset_deg"] = {"offset_deg": offsets, **{
+        name: pitch_moment_world_y(c, offsets) for name, c in check_cases.items() if name.startswith("cp_")}}
     (args.output / "checks.json").write_text(json.dumps(checks, indent=1, ensure_ascii=False), encoding="utf-8")
     if not args.quick:
         from phase2_plots import write_figures  # noqa: PLC0415  同じ scripts/ 内
