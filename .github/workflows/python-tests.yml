@@ -1,0 +1,30 @@
+# Python（物理計算の正本）のテスト。通常球の回帰基準と、TS 照合用ゴールデンの古さ検出を含む。
+# TS 側のテストは deploy-pages.yml（viewer 変更時の公開前）で実行している。
+name: Python tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # .python-version（3.12）と uv.lock の固定版で実行する
+      - run: uv sync --locked
+      - run: uv run pytest -q

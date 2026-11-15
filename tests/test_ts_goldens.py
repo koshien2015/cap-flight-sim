@@ -24,15 +24,59 @@ def _generator():
     return module
 
 
+# 浮動小数は OS（libm・numpy の SIMD 経路）で最下位ビットが変わるため、バイト一致ではなく数値で比べる。
+# キー・文字列・真偽値・null・配列長は完全一致を要求する（分岐が変わったら許容誤差では吸収しない）。
+GOLDEN_REL_TOL = 1e-12
+
+
+def _diff_json(expected, actual, path="$"):
+    """(構造の不一致リスト, 最悪の数値差 (相対誤差, パス)) を返す。"""
+    if isinstance(expected, bool) or isinstance(actual, bool) or expected is None or actual is None \
+            or isinstance(expected, str) or isinstance(actual, str):
+        return ([] if expected == actual else [f"{path}: {expected!r} → {actual!r}"]), (0.0, path)
+    if isinstance(expected, (int, float)) and isinstance(actual, (int, float)):
+        rel = abs(expected - actual) / max(1.0, abs(expected))
+        return [], (rel if np.isfinite(rel) else float("inf"), path)
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        if expected.keys() != actual.keys():
+            return [f"{path}: キーが違う {sorted(expected.keys() ^ actual.keys())}"], (0.0, path)
+        items = [(expected[k], actual[k], f"{path}.{k}") for k in expected]
+    elif isinstance(expected, list) and isinstance(actual, list):
+        if len(expected) != len(actual):
+            return [f"{path}: 長さ {len(expected)} → {len(actual)}"], (0.0, path)
+        items = [(e, a, f"{path}[{i}]") for i, (e, a) in enumerate(zip(expected, actual))]
+    else:
+        return [f"{path}: 型が違う {type(expected).__name__} → {type(actual).__name__}"], (0.0, path)
+    mismatches, worst = [], (0.0, path)
+    for e, a, p in items:
+        m, w = _diff_json(e, a, p)
+        mismatches.extend(m)
+        worst = max(worst, w, key=lambda x: x[0])
+    return mismatches, worst
+
+
 def test_ts_goldens_are_up_to_date():
     gen = _generator()
-    stale = [
-        str(path.relative_to(ROOT))
-        for path, data in gen.build_all().items()
-        if not path.exists() or path.read_text(encoding="utf-8") != gen.render(data)
-    ]
-    assert not stale, f"ゴールデンが古い: {stale} → uv run python scripts/generate_ts_goldens.py を実行し、viewer で pnpm test"
+    stale = []
+    for path, data in gen.build_all().items():
+        name = str(path.relative_to(ROOT))
+        if not path.exists():
+            stale.append(f"{name}: ファイルが無い")
+            continue
+        mismatches, (rel, where) = _diff_json(json.loads(path.read_text(encoding="utf-8")), json.loads(gen.render(data)))
+        stale.extend(f"{name}: {m}" for m in mismatches[:5])
+        if not (rel <= GOLDEN_REL_TOL):
+            stale.append(f"{name}: 最大相対差 {rel:.2e} @ {where}")
+    assert not stale, "ゴールデンが古い → uv run python scripts/generate_ts_goldens.py を実行し、viewer で pnpm test\n" + "\n".join(stale)
 
+
+def test_golden_diff_detects_structure_and_value_changes():
+    mismatches, (rel, _) = _diff_json({"a": [1.0, True, None, "s"]}, {"a": [1.0, True, None, "s"]})
+    assert mismatches == [] and rel == 0.0
+    assert _diff_json({"a": True}, {"a": False})[0]
+    assert _diff_json({"a": [1.0]}, {"a": [1.0, 2.0]})[0]
+    assert _diff_json({"a": None}, {"a": 0.0})[0]
+    assert _diff_json({"a": 1.0}, {"a": 1.0 + 1e-9})[1][0] > GOLDEN_REL_TOL
 
 def test_browser_exported_config_reproduces_in_python():
     fixture = json.loads((ROOT / "viewer/tests/fixtures/exported-config.json").read_text(encoding="utf-8"))

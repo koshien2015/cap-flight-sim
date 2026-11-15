@@ -71,7 +71,15 @@ describe('RK4 trajectory parity', () => {
       const result = runSimulation(configFromRaw(c.raw as Record<string, unknown>, c.name));
       expect(result.terminationReason).toBe(c.terminationReason);
       expect(result.events.map((e) => e.type)).toEqual(c.events.map((e) => e.type));
-      result.events.forEach((e, i) => expect(Math.abs(e.timeSec - c.events[i].timeSec), `event ${e.type}`).toBeLessThan(1e-9));
+      result.events.forEach((e, i) => {
+        const g: { timeSec: number; position?: number[]; normal?: number[] } = c.events[i];
+        expect(Math.abs(e.timeSec - g.timeSec), `event ${e.type}`).toBeLessThan(1e-9);
+        expect(e.frame === undefined, `event ${e.type} frame presence`).toBe(g.position === undefined);
+        if (e.frame && g.position && g.normal) {
+          expectClose(e.frame.y.slice(0, 3), g.position, `event ${e.type} pos`, 1e-8, 1e-8);
+          expectClose(e.frame.normalWorld, g.normal, `event ${e.type} normal`, 1e-7, 1e-7);
+        }
+      });
       expect(result.frames.length).toBe(c.frames.length);
       result.frames.forEach((f, i) => {
         const g = c.frames[i];
