@@ -281,6 +281,7 @@ simulation:
 | `C_spin_axis` | 上下・左右・進行方向の回転軸と、それぞれ 10°・20° 傾斜（揚力 OFF でマグヌス力を分離） |
 | `D_spin_rate` | 0 / 300 / 1500 / 3000 rpm。ピッチモーメントを仮定した条件でジャイロ安定を確認 |
 | `E_drag_lift_sensitivity` | Cd と cl0 の感度。捕手面へ届くのに必要な係数の桁を見る |
+| `scripts/phase2_sensitivity.py` | 感度分析（Issue #1 Phase 2）。ナックルとストレートの条件を1つずつ振る。結果と考察は `docs/phase2_sensitivity.md` |
 | `F_attitude_diagnostics` | 姿勢安定性の診断（Issue #1 Phase 1）。ストレート（オーバースロー）とナックル（天面を打者へ正対・前縁 30° 上げ・無回転）を、圧力中心のずれあり／なしで比べる。固定刻み RK4 |
 
 ---
