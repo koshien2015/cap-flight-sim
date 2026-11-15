@@ -148,12 +148,12 @@ def trajectory_cases(presets: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
         "catcher_continue_to_ground": apply_overrides(presets["ballistic_no_aero"], {
             "simulation.termination.stop_at_catcher_plane": False}),
         "sidearm_flat": presets["sidearm_flat"],
-        # 低スピン・面を捕手方向へ向けた条件（Issue #1 の検証域）。プリセット一覧に出さないため inline で定義。
-        # 実際のナックルのリリース姿勢を表すものではなく、TS 移植が低スピン域でも一致することの確認用。
-        "low_spin_face_forward": apply_overrides(presets["spec_example_tumble"], {
+        # ナックルのリリース姿勢（Issue #1 の検証域）: 閉じた天面を打者（+X）へ正対させ、前縁を上げ（面法線を 10° 上向き）、
+        # 回転をかけない。傾き 10° は仮の値。プリセット一覧に出さないため inline で定義。
+        "knuckle_face_forward_no_spin": apply_overrides(presets["spec_example_tumble"], {
             "initial_state.speed_kmh": 50.0,
             "initial_state.orientation_euler_deg": [0.0, 80.0, 0.0],
-            "initial_state.angular_velocity": {"rpm": 60, "axis_body": [0.0, 0.0, 1.0]}}),
+            "initial_state.angular_velocity": {"rpm": 0, "axis_body": [0.0, 0.0, 1.0]}}),
     }
     cases = []
     for name, raw in selected.items():
