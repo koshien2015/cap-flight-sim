@@ -332,10 +332,12 @@ simulation:
 2. `uv run python scripts/generate_ts_goldens.py` を実行し、ゴールデンを再生成する。
 3. `viewer/src/physics/` を追従させる。
 4. **`./scripts/check_all.sh` を実行し、両方のテストを通す。**
+5. 通常球の回帰基準（`tests/test_regression_baseline.py`）が落ちたら、`uv run python scripts/update_regression_baseline.py` で差を確認する。意図した変更なら、差と根拠を記録したうえで `--write` を付けて基準を更新する。
 
 | テスト | 内容 |
 |---|---|
-| `viewer/tests/physics-parity.test.ts` | 状態微分・空気力の内訳（7バリエーション × 12状態）と RK4 軌道6ケースを照合。実測の差は位置 ~2e-15 m、到達時刻 ~3e-16 s |
+| `tests/test_regression_baseline.py` | 通常球の代表プリセット6件を既定の積分器（DOP853）で計算し、凍結した基準（`tests/regression/normal_pitches_baseline.json`）と照合する。対象は軌道・速度・面法線・角速度・着地または捕手面到達時の状態。ゴールデンと違って自動では再生成されないため、軌道の意図しない変化を検出できる |
+| `viewer/tests/physics-parity.test.ts` | 状態微分・空気力の内訳（7バリエーション × 12状態）と RK4 軌道8ケース（低スピンで面を捕手方向へ向けた条件を含む）を照合する。着地・捕手面到達時の位置と面法線も照合対象。実測の差は位置 ~2e-15 m、到達時刻 ~3e-16 s |
 | `tests/test_ts_goldens.py` | ゴールデンやプリセットの古さを検出する。UI が書き出した JSON を Python で再計算して同じ終了位置になることも確認 |
 | `viewer/tests/export-roundtrip.test.ts` | UI の書き出し形式と、傾き定義が実験 B と一致すること |
 
