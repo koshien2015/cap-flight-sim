@@ -1,0 +1,120 @@
+{
+ "cp_aft_2.5mm": {
+  "delta=0.2deg": {
+   "moment_plus_nm": -8.43683280547108e-08,
+   "moment_minus_nm": 8.436832805471506e-08,
+   "stiffness_nm_per_rad": -2.4169745610551147e-05,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": NaN
+  },
+  "delta=0.02deg": {
+   "moment_plus_nm": -8.580005370660861e-09,
+   "moment_minus_nm": 8.580005370650402e-09,
+   "stiffness_nm_per_rad": -2.457990479690736e-05,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": NaN
+  },
+  "continuous_at_face_on": true
+ },
+ "cp_fwd_2.5mm": {
+  "delta=0.2deg": {
+   "moment_plus_nm": 8.436832805471079e-08,
+   "moment_minus_nm": -8.436832805471505e-08,
+   "stiffness_nm_per_rad": 2.4169745610551143e-05,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": 0.6532388088215348
+  },
+  "delta=0.02deg": {
+   "moment_plus_nm": 8.58000537066086e-09,
+   "moment_minus_nm": -8.5800053706504e-09,
+   "stiffness_nm_per_rad": 2.4579904796907356e-05,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": 0.6477656580098035
+  },
+  "continuous_at_face_on": true
+ },
+ "cm_alpha_+0.05": {
+  "delta=0.2deg": {
+   "moment_plus_nm": 0.0001929784671879088,
+   "moment_minus_nm": -0.00019297846718790878,
+   "stiffness_nm_per_rad": null,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": null
+  },
+  "delta=0.02deg": {
+   "moment_plus_nm": 0.0001933652837145661,
+   "moment_minus_nm": -0.0001933652837145661,
+   "stiffness_nm_per_rad": null,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": null
+  },
+  "continuous_at_face_on": false
+ },
+ "cm_alpha_-0.05": {
+  "delta=0.2deg": {
+   "moment_plus_nm": -0.0001929784671879088,
+   "moment_minus_nm": 0.00019297846718790878,
+   "stiffness_nm_per_rad": null,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": null
+  },
+  "delta=0.02deg": {
+   "moment_plus_nm": -0.0001933652837145661,
+   "moment_minus_nm": 0.0001933652837145661,
+   "stiffness_nm_per_rad": null,
+   "transverse_inertia_kg_m2": 2.6125000000000004e-07,
+   "linear_period_s": null
+  },
+  "continuous_at_face_on": false
+ },
+ "moment_vs_offset_deg": {
+  "offset_deg": [
+   0.5,
+   1,
+   2,
+   5,
+   8,
+   10,
+   11,
+   12,
+   13,
+   15,
+   20,
+   28,
+   40,
+   60
+  ],
+  "cp_aft_2.5mm": [
+   -2.0496388431969754e-07,
+   -3.901205900008232e-07,
+   -7.014032578793059e-07,
+   -1.1710623162667732e-06,
+   -9.66580597120837e-07,
+   -4.721194748839909e-07,
+   -1.2160101143595096e-07,
+   2.957876318378294e-07,
+   7.784876225742225e-07,
+   1.933347096632061e-06,
+   5.846056960620293e-06,
+   1.468576841028625e-05,
+   3.210836102596776e-05,
+   0.00011162708302755065
+  ],
+  "cp_fwd_2.5mm": [
+   2.049638843196975e-07,
+   3.9012059000082313e-07,
+   7.014032578793058e-07,
+   1.171062316266773e-06,
+   9.66580597120837e-07,
+   4.7211947488399087e-07,
+   1.2160101143595096e-07,
+   -2.9578763183782936e-07,
+   -7.784876225742224e-07,
+   -1.9333470966320606e-06,
+   -5.846056960620292e-06,
+   -1.4685768410286246e-05,
+   -3.210836102596775e-05,
+   -0.00011162708302755062
+  ]
+ }
+}

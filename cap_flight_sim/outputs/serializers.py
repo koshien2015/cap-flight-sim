@@ -53,8 +53,30 @@ def _jsonable(obj: Any) -> Any:
     return obj
 
 
+def attitude_diagnostics(omega_body: np.ndarray, inertia_body: np.ndarray) -> dict[str, float]:
+    """回転の面法線成分・面内成分（タンブリング）と角運動量。姿勢安定性の診断用。
+
+    spin_axis_tilt_deg は角速度ベクトルと面法線（body +Z）のなす角。無回転では定義できないため NaN。
+    """
+    omega_inplane = float(np.hypot(omega_body[0], omega_body[1]))
+    angular_momentum = inertia_body @ omega_body
+    spinning = float(np.linalg.norm(omega_body)) > 0.0
+    return {
+        "omega_normal": float(omega_body[2]),
+        "omega_inplane": omega_inplane,
+        "spin_axis_tilt_deg": float(np.degrees(np.arctan2(omega_inplane, omega_body[2]))) if spinning else np.nan,
+        "angular_momentum_normal": float(angular_momentum[2]),
+        "angular_momentum_inplane": float(np.hypot(angular_momentum[0], angular_momentum[1])),
+    }
+
+
+def moment_component_columns(components: dict[str, np.ndarray]) -> dict[str, float]:
+    return {f"moment_{name}_{axis}": float(vec[i]) for name, vec in components.items() for i, axis in enumerate("xyz")}
+
+
 def timeseries_dataframe(result: SimulationResult) -> pd.DataFrame:
     rows = []
+    inertia = result.config.cap.inertia_tensor_body_kg_m2
     for f in result.frames:
         s = f.state
         a = f.aero
@@ -83,6 +105,9 @@ def timeseries_dataframe(result: SimulationResult) -> pd.DataFrame:
                 "magnus_x": a.magnus_world_n[0], "magnus_y": a.magnus_world_n[1], "magnus_z": a.magnus_world_n[2],
                 "total_force_x": a.force_world_n[0], "total_force_y": a.force_world_n[1], "total_force_z": a.force_world_n[2],
                 "moment_x": a.moment_body_nm[0], "moment_y": a.moment_body_nm[1], "moment_z": a.moment_body_nm[2],
+                **moment_component_columns(a.moment_components_body_nm),
+                **attitude_diagnostics(omega, inertia),
+                "reynolds_number": a.diagnostics.get("reynolds_number", np.nan),
                 "cd": a.coefficients.get("cd", np.nan),
                 "cl": a.coefficients.get("cl", np.nan),
                 "cy": a.coefficients.get("cy", np.nan),
@@ -123,6 +148,7 @@ def build_result_document(result: SimulationResult) -> dict[str, Any]:
                         "airDensityKgM3": cfg.environment.air_density_kg_m3,
                         "windVelocityWorldMS": cfg.environment.wind_velocity_world_m_s,
                         "gravityMS2": g,
+                        "dynamicViscosityPaS": cfg.environment.dynamic_viscosity_pa_s,
                     },
                     "field": vars(cfg.field_geometry),
                     "initialState": {

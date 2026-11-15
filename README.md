@@ -245,9 +245,20 @@ simulation:
 | ファイル | 内容 |
 |---|---|
 | `result.json` | 設定（入力値と SI 値）、`parameter_source`、`aerodynamic_model`、`assumptions`、`warnings`、`simulation_version`、`coordinate_system`、`summary`、`events`、時系列 |
-| `timeseries.csv` | 1時刻1行: 位置・速度・クォータニオン・roll/pitch/yaw（表示用）・ω（body と world）・rpm・面法線・迎角・横滑り角・抗力/揚力/マグヌス/合力・モーメント・cd/cl/cy |
+| `timeseries.csv` | 1時刻1行: 位置・速度・クォータニオン・roll/pitch/yaw（表示用）・ω（body と world）・rpm・面法線・迎角・横滑り角・抗力/揚力/マグヌス/合力・モーメント・cd/cl/cy・姿勢診断（下表） |
 | `viewer.json` | ビューア用（物理座標のまま保存） |
 | `plots/01〜08` | 上面 X-Y、側面 X-Z、捕手面 Y-Z、速度、回転数、面法線、力の大きさ、迎角・横滑り角 |
+| `plots/09〜11` | 回転と姿勢（面法線まわり／面内の角速度、回転軸と面法線の角、面法線と相対風の角）、モーメントの内訳、Reynolds 数 |
+
+姿勢安定性の診断列（Issue #1 Phase 1）。力学計算には使わず、出力するだけです。
+
+| 列 | 内容 |
+|---|---|
+| `omega_normal` / `omega_inplane` | 角速度の面法線（body Z）成分と、面内成分の大きさ（タンブリング） [rad/s] |
+| `spin_axis_tilt_deg` | 角速度ベクトルと面法線のなす角。角速度が厳密に 0 のときだけ空欄（数値誤差程度のごく小さな回転でも角度は出る） |
+| `angular_momentum_normal` / `angular_momentum_inplane` | 角運動量 Iω の面法線成分と面内成分の大きさ [kg·m²/s] |
+| `moment_<項>_x/y/z` | モーメントの内訳（body 座標）。簡易モデルは `center_of_pressure`（圧力中心のずれ）・`pitch`（ピッチ係数）・`damping`（回転減衰）、係数表モデルは `table`。合計は `moment_x/y/z` |
+| `reynolds_number` | Re = ρ\|u\|D/μ（u は対気速度、D は外径）。μ は `environment.dynamic_viscosity_pa_s`（既定 1.81e-5 Pa·s、20°C の空気）。係数には使っていない |
 
 比較指標（`comparison.csv`）は着弾点だけに頼らないように、次の値を出します。
 
@@ -270,6 +281,9 @@ simulation:
 | `C_spin_axis` | 上下・左右・進行方向の回転軸と、それぞれ 10°・20° 傾斜（揚力 OFF でマグヌス力を分離） |
 | `D_spin_rate` | 0 / 300 / 1500 / 3000 rpm。ピッチモーメントを仮定した条件でジャイロ安定を確認 |
 | `E_drag_lift_sensitivity` | Cd と cl0 の感度。捕手面へ届くのに必要な係数の桁を見る |
+| `F_attitude_diagnostics` | 姿勢安定性の診断（Issue #1 Phase 1）。ストレート（オーバースロー）とナックル（天面を打者へ正対・前縁 30° 上げ・無回転）を、圧力中心のずれあり／なしで比べる。固定刻み RK4 |
+
+感度分析（Issue #1 Phase 2）は `uv run python scripts/phase2_sensitivity.py` で再現できます。ナックルとストレートの条件を1つずつ振り、結果と考察を `docs/phase2_sensitivity.md` にまとめています。
 
 ---
 

@@ -38,6 +38,15 @@ describe('config parity', () => {
   }
 });
 
+describe('environment viscosity', () => {
+  it('rejects non-positive or non-finite dynamic viscosity like Python', () => {
+    const raw = derivatives.cases[0].raw as Record<string, unknown>;
+    for (const bad of [0, -1e-5, 'nan']) {
+      expect(() => configFromRaw({ ...raw, environment: { dynamic_viscosity_pa_s: bad } }), String(bad)).toThrow();
+    }
+  });
+});
+
 describe('derivative & aero parity', () => {
   for (const c of derivatives.cases) {
     const cfg = configFromRaw(c.raw as Record<string, unknown>);
@@ -53,6 +62,9 @@ describe('derivative & aero parity', () => {
         expectClose(aero.drag, st.drag, 'drag');
         expectClose(aero.lift, st.lift, 'lift');
         expectClose(aero.magnus, st.magnus, 'magnus');
+        const components = aero.momentComponents as Record<string, readonly number[]>;
+        expect(Object.keys(components).sort(), 'moment component keys').toEqual(Object.keys(st.momentComponents).sort());
+        for (const [k, v] of Object.entries(st.momentComponents)) expectClose(components[k], v, `moment.${k}`, REL, 1e-18);
         for (const [k, v] of Object.entries(st.coefficients)) expect(aero.coefficients[k as keyof typeof aero.coefficients], k).toBeCloseTo(v, 10);
         const d = aero.diagnostics as Record<string, number | boolean>;
         for (const [k, v] of Object.entries(st.diagnostics)) {

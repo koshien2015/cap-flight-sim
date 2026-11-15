@@ -39,6 +39,8 @@ export interface EnvironmentParams {
   airDensity: number;
   windWorld: V3;
   gravity: number;
+  /** Reynolds 数の診断値にのみ使う（力学計算には使わない） */
+  dynamicViscosity: number;
 }
 
 export interface Settings {
@@ -251,7 +253,9 @@ export function configFromRaw(rawInput: RawConfig, name = 'run'): SimConfig {
     airDensity: num(env.air_density_kg_m3, 1.204),
     windWorld: env.wind_velocity_world_m_s == null ? [0, 0, 0] : v3(env.wind_velocity_world_m_s, 'wind'),
     gravity: num(env.gravity_m_s2, 9.80665),
+    dynamicViscosity: num(env.dynamic_viscosity_pa_s, 1.81e-5),
   };
+  if (!(environment.dynamicViscosity > 0)) throw new ConfigError('environment.dynamic_viscosity_pa_s must be positive');
   const field = obj(raw.field);
   const init = obj(raw.initial_state);
   const q0 = buildOrientation(init);

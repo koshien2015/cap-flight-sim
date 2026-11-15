@@ -21,7 +21,31 @@ def test_simulate_writes_bundle_and_plots(tmp_path):
     assert main(["simulate", "--config", str(ROOT / "examples/ballistic_no_aero.yaml"), "--output", str(out)]) == 0
     doc = json.loads((out / "result.json").read_text())
     assert doc["summary"]["terminationReason"] == "catcher_plane"
-    assert len(list((out / "plots").glob("*.png"))) == 8
+    plots = {p.name for p in (out / "plots").glob("*.png")}
+    assert len(plots) == 11
+    assert {"09_attitude.png", "10_moments.png", "11_reynolds.png"} <= plots
+    assert doc["config"]["si"]["environment"]["dynamicViscosityPaS"] == 1.81e-5
+
+
+def test_compare_accepts_result_without_phase1_columns(tmp_path):
+    """Phase 1 より前に書き出した result.json（診断列なし）も compare で描ける。"""
+    out = tmp_path / "run"
+    assert main(["simulate", "--config", str(ROOT / "examples/ballistic_no_aero.yaml"), "--output", str(out)]) == 0
+    doc = json.loads((out / "result.json").read_text())
+    new_keys = [k for k in doc["timeseries"] if k.startswith(("moment_center", "moment_pitch", "moment_damping"))]
+    for key in new_keys + ["omega_normal", "omega_inplane", "spin_axis_tilt_deg", "angular_momentum_normal",
+                           "angular_momentum_inplane", "reynolds_number"]:
+        del doc["timeseries"][key]
+    legacy = tmp_path / "legacy.json"
+    legacy.write_text(json.dumps(doc), encoding="utf-8")
+    assert main(["compare", "--runs", str(legacy), "--output", str(tmp_path / "cmp")]) == 0
+    plots = {p.name for p in (tmp_path / "cmp/plots").glob("*.png")}
+    assert "01_top_xy.png" in plots
+    assert not plots & {"09_attitude.png", "10_moments.png", "11_reynolds.png"}
+    # 古い結果と新しい結果を一緒に比べても、新しい方だけで診断図を描く
+    assert main(["compare", "--runs", str(legacy), str(out / "result.json"), "--output", str(tmp_path / "mixed")]) == 0
+    mixed = {p.name for p in (tmp_path / "mixed/plots").glob("*.png")}
+    assert {"09_attitude.png", "10_moments.png", "11_reynolds.png"} <= mixed
 
 
 def test_sweep_and_compare(tmp_path):

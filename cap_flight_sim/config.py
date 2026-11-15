@@ -204,10 +204,14 @@ def build_cap(section: dict[str, Any], assumptions: list[str]) -> CapParameters:
 
 
 def build_environment(section: dict[str, Any]) -> Environment:
+    viscosity = float(section.get("dynamic_viscosity_pa_s", 1.81e-5))
+    if not viscosity > 0.0:
+        raise ConfigError("environment.dynamic_viscosity_pa_s must be positive")
     return Environment(
         air_density_kg_m3=float(section.get("air_density_kg_m3", 1.204)),
         wind_velocity_world_m_s=_vec(section.get("wind_velocity_world_m_s", [0.0, 0.0, 0.0]), "wind_velocity_world_m_s"),
         gravity_m_s2=float(section.get("gravity_m_s2", 9.80665)),
+        dynamic_viscosity_pa_s=viscosity,
     )
 
 

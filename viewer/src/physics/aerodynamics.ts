@@ -30,6 +30,8 @@ export interface AeroResult {
   lift: V3;
   magnus: V3;
   coefficients: { cd: number; cl: number; cy: number; cm_pitch: number };
+  /** モーメントの内訳（ボディ座標）。合計は momentBody。診断用 */
+  momentComponents: { center_of_pressure: V3; pitch: V3; damping: V3 };
   diagnostics: {
     speed_m_s: number;
     dynamic_pressure_pa: number;
@@ -38,6 +40,7 @@ export interface AeroResult {
     normal_to_wind_deg: number;
     projected_area_m2: number;
     spin_parameter: number;
+    reynolds_number: number;
     lift_degenerate_face_on: boolean;
     stationary: boolean;
   };
@@ -63,6 +66,7 @@ interface Flow {
   omegaPerp: V3;
   spinParameter: number;
   faceOn: boolean;
+  reynolds: number;
 }
 
 function flowGeometry(s: BodyState, cap: CapParams, env: EnvironmentParams): Flow | null {
@@ -91,6 +95,7 @@ function flowGeometry(s: BodyState, cap: CapParams, env: EnvironmentParams): Flo
     liftDir, inplaneBody, pitchAxisBody, omegaPerp,
     spinParameter: (cap.radiusM * norm(omegaPerp)) / speed,
     faceOn,
+    reynolds: (env.airDensity * speed * cap.diameterM) / env.dynamicViscosity,
   };
 }
 
@@ -171,9 +176,10 @@ export function magnusCoefficient(p: SimpleModelParams, spinParameter: number): 
 const STATIONARY: AeroResult = {
   force: ZERO3, momentBody: ZERO3, drag: ZERO3, lift: ZERO3, magnus: ZERO3,
   coefficients: { cd: 0, cl: 0, cy: 0, cm_pitch: 0 },
+  momentComponents: { center_of_pressure: ZERO3, pitch: ZERO3, damping: ZERO3 },
   diagnostics: {
     speed_m_s: 0, dynamic_pressure_pa: 0, angle_of_attack_deg: 0, sideslip_deg: 0, normal_to_wind_deg: Number.NaN,
-    projected_area_m2: 0, spin_parameter: 0, lift_degenerate_face_on: false, stationary: true,
+    projected_area_m2: 0, spin_parameter: 0, reynolds_number: 0, lift_degenerate_face_on: false, stationary: true,
   },
 };
 
@@ -190,24 +196,33 @@ export function evaluateAero(p: SimpleModelParams, s: BodyState, cap: CapParams,
   const magnus = p.enable.magnus ? scale(magnusDir, qa * cy) : ZERO3;
   const force = add(add(drag, lift), magnus);
 
+  // 合計の足し算の順序は内訳導入前と同じに保つ（Python と同じく軌道を変えないため）
   let moment: V3 = ZERO3;
   let cmPitch = 0;
+  let cpMoment: V3 = ZERO3;
+  let pitchMoment: V3 = ZERO3;
+  let dampingMoment: V3 = ZERO3;
   if (p.enable.moments) {
     const m = p.moments;
     if (m.center_of_pressure_body_m) {
       const arm = sub(m.center_of_pressure_body_m, cap.centerOfMassBodyM);
-      moment = add(moment, cross(arm, matTVec(qToMatrix(s.q), force)));
+      cpMoment = cross(arm, matTVec(qToMatrix(s.q), force));
+      moment = add(moment, cpMoment);
     }
     cmPitch = m.cm_pitch0 + m.cm_pitch_alpha_per_rad * flow.alpha;
-    moment = add(moment, scale(flow.pitchAxisBody, flow.qDyn * cap.referenceAreaM2 * cap.diameterM * cmPitch));
+    pitchMoment = scale(flow.pitchAxisBody, flow.qDyn * cap.referenceAreaM2 * cap.diameterM * cmPitch);
+    moment = add(moment, pitchMoment);
     const damp = 0.5 * env.airDensity * flow.speed * cap.referenceAreaM2 * cap.diameterM * cap.radiusM;
     const w = s.omegaBody;
-    moment = sub(moment, scale([m.tumble_damping * w[0], m.tumble_damping * w[1], m.spin_damping * w[2]], damp));
+    const damping = scale([m.tumble_damping * w[0], m.tumble_damping * w[1], m.spin_damping * w[2]], damp);
+    moment = sub(moment, damping);
+    dampingMoment = scale(damping, -1);
   }
 
   return {
     force, momentBody: moment, drag, lift, magnus,
     coefficients: { cd, cl, cy, cm_pitch: cmPitch },
+    momentComponents: { center_of_pressure: cpMoment, pitch: pitchMoment, damping: dampingMoment },
     diagnostics: {
       speed_m_s: flow.speed,
       dynamic_pressure_pa: flow.qDyn,
@@ -216,6 +231,7 @@ export function evaluateAero(p: SimpleModelParams, s: BodyState, cap: CapParams,
       normal_to_wind_deg: flow.normalToWindDeg,
       projected_area_m2: area,
       spin_parameter: flow.spinParameter,
+      reynolds_number: flow.reynolds,
       lift_degenerate_face_on: flow.faceOn,
       stationary: false,
     },
