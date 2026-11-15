@@ -57,7 +57,7 @@ AERO_VARIANTS: dict[str, dict[str, Any]] = {
     "moments_all": {"aerodynamics.moments": {"center_of_pressure_body_m": [0.002, -0.001, 0.003], "cm_pitch0": -0.05,
                                              "cm_pitch_alpha_per_rad": 0.4, "spin_damping": 0.02, "tumble_damping": 0.05}},
     "wind_cavity_solid": {"environment": {"wind_velocity_world_m_s": [-2.0, 1.0, 0.5], "air_density_kg_m3": 1.1,
-                                          "gravity_m_s2": 9.7},
+                                          "gravity_m_s2": 9.7, "dynamic_viscosity_pa_s": 1.7e-5},
                           "cap.surface_orientation": "body_z_is_cavity", "cap.inertia_method": "solid_cylinder"},
     "thin_disk_all_off": {"cap.inertia_method": "thin_disk",
                           "aerodynamics.enable": {"drag": False, "lift": False, "magnus": False, "moments": False}},
@@ -126,6 +126,7 @@ def derivative_cases() -> list[dict[str, Any]]:
                 "drag": _floats(aero.drag_world_n),
                 "lift": _floats(aero.lift_world_n),
                 "magnus": _floats(aero.magnus_world_n),
+                "momentComponents": {k: _floats(v) for k, v in aero.moment_components_body_nm.items()},
                 "coefficients": {k: float(v) for k, v in aero.coefficients.items()},
                 "diagnostics": {k: (float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v)
                                 for k, v in aero.diagnostics.items()},

@@ -130,7 +130,9 @@ class LookupTableAerodynamicModel:
         zero = np.zeros(3)
         if flow.is_stationary:
             coeffs = {c: 0.0 for c in COEFFICIENT_COLUMNS}
-            return AerodynamicResult(zero, zero, zero, zero, zero, coeffs, {"stationary": True, "out_of_table_range": False})
+            return AerodynamicResult(zero, zero, zero, zero, zero, coeffs,
+                                     {"reynolds_number": 0.0, "stationary": True, "out_of_table_range": False},
+                                     {"table": zero})
 
         point = {
             "speed_m_s": flow.speed_m_s,
@@ -164,9 +166,11 @@ class LookupTableAerodynamicModel:
             lift_world_n=lift,
             magnus_world_n=magnus,
             coefficients=coeffs,
+            moment_components_body_nm={"table": moment},
             diagnostics={
                 **{k: float(v) for k, v in point.items()},
                 "normal_to_wind_deg": flow.normal_to_wind_deg,
+                "reynolds_number": flow.reynolds_number,
                 "out_of_table_range": out,
                 "stationary": False,
             },

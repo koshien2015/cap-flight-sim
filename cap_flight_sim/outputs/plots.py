@@ -71,7 +71,21 @@ def plot_runs(docs: list[dict[str, Any]], output_dir: str | Path) -> list[Path]:
         _plot_forces(docs, out),
         _plot_angles(docs, out),
     ]
+    # Issue #1 Phase 1 の診断図。列が無い古い result.json は描かない
+    paths += [p for p in (_plot_attitude(docs, out), _plot_moments(docs, out), _plot_reynolds(docs, out)) if p]
     return paths
+
+
+def _with(docs, *keys: str) -> list[dict[str, Any]]:
+    return [d for d in docs if all(k in d["timeseries"] for k in keys)]
+
+
+def _save(fig, out: Path, filename: str) -> Path:
+    fig.tight_layout()
+    path = out / filename
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+    return path
 
 
 def _plot_catcher_plane(docs, out: Path) -> Path:
@@ -157,3 +171,73 @@ def _plot_angles(docs, out: Path) -> Path:
     fig.savefig(path, dpi=130)
     plt.close(fig)
     return path
+
+
+def _plot_attitude(docs, out: Path) -> Path | None:
+    docs = _with(docs, "omega_normal", "omega_inplane", "spin_axis_tilt_deg")
+    if not docs:
+        return None
+    fig, axes = plt.subplots(3, 1, figsize=(8, 8), sharex=True)
+    for d in docs:
+        t = _series(d, "time")
+        (line,) = axes[0].plot(t, _series(d, "omega_normal"), label=f"{d['name']} 面法線まわり")
+        axes[0].plot(t, _series(d, "omega_inplane"), ls="--", color=line.get_color(), label=f"{d['name']} 面内（タンブリング）")
+        axes[1].plot(t, _series(d, "spin_axis_tilt_deg"), label=d["name"])
+        axes[2].plot(t, _series(d, "normal_to_wind_deg"), label=d["name"])
+    axes[0].set_ylabel("ω [rad/s]")
+    axes[1].set_ylabel("回転軸と面法線の角 [deg]")
+    axes[2].set_ylabel("面法線と相対風の角 [deg]")
+    axes[2].set_xlabel("t [s]")
+    axes[0].set_title("回転と姿勢（回転軸の傾きは無回転では未定義）\n（仮定係数に基づく計算値）", fontsize=10)
+    for ax in axes:
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=7)
+    return _save(fig, out, "09_attitude.png")
+
+
+def _moment_components(doc) -> list[str]:
+    names = {k[len("moment_"):-2] for k in doc["timeseries"] if k.startswith("moment_") and k[-2:] in ("_x", "_y", "_z")}
+    return sorted(n for n in names if n and all(f"moment_{n}_{a}" in doc["timeseries"] for a in "xyz"))
+
+
+def _plot_moments(docs, out: Path) -> Path | None:
+    docs = [d for d in docs if _moment_components(d)]
+    if not docs:
+        return None
+    labels = {"center_of_pressure": "圧力中心のずれ", "pitch": "ピッチ係数", "damping": "回転減衰", "table": "係数表"}
+    styles = ("-", "--", ":", "-.")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for d in docs:
+        t = _series(d, "time")
+        color = None
+        for name, ls in zip(_moment_components(d), styles):
+            mag = np.linalg.norm(np.column_stack([_series(d, f"moment_{name}_{a}") for a in "xyz"]), axis=1)
+            if not np.any(mag > 0.0):
+                continue  # 無効な項（係数 0）は凡例を埋めないよう描かない
+            (line,) = ax.plot(t, mag, ls=ls, color=color, label=f"{d['name']} {labels.get(name, name)}")
+            color = line.get_color()
+    ax.set_title("空力モーメントの内訳（大きさ。0 の項は省略）\n（仮定係数に基づく計算値）", fontsize=11)
+    ax.set_xlabel("t [s]")
+    ax.set_ylabel("|M| [N·m]")
+    ax.grid(alpha=0.3)
+    if ax.get_lines():
+        ax.legend(fontsize=7)
+    else:
+        ax.text(0.5, 0.5, "空力モーメントは全時刻で 0（モーメント項の係数がすべて 0）",
+                transform=ax.transAxes, ha="center", va="center")
+    return _save(fig, out, "10_moments.png")
+
+
+def _plot_reynolds(docs, out: Path) -> Path | None:
+    docs = _with(docs, "reynolds_number")
+    if not docs:
+        return None
+    fig, ax = plt.subplots(figsize=(8, 4))
+    for d in docs:
+        ax.plot(_series(d, "time"), _series(d, "reynolds_number"), label=d["name"])
+    ax.set_title("Reynolds 数 Re = ρ|u|D/μ（診断値。係数には使っていない）", fontsize=11)
+    ax.set_xlabel("t [s]")
+    ax.set_ylabel("Re")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=7)
+    return _save(fig, out, "11_reynolds.png")

@@ -35,6 +35,8 @@ class Environment:
     air_density_kg_m3: float
     wind_velocity_world_m_s: np.ndarray
     gravity_m_s2: float
+    # 粘性係数は Reynolds 数の診断値にのみ使う（力学計算には使わない）。20°C の空気
+    dynamic_viscosity_pa_s: float = 1.81e-5
 
     @property
     def gravity_world_m_s2(self) -> np.ndarray:
@@ -85,6 +87,8 @@ class AerodynamicResult:
     magnus_world_n: np.ndarray
     coefficients: dict[str, float]
     diagnostics: dict[str, float | str | bool]
+    # モーメントの内訳（ボディ座標）。合計は moment_body_nm。診断用で力学計算には使わない
+    moment_components_body_nm: dict[str, np.ndarray] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,34 @@
+# 実験F（Issue #1 Phase 1）: 姿勢安定性の診断。力学モデルは変えず、診断値の時系列と図（09〜11）を見るための条件。
+# ナックル = 閉じた天面を打者（+X）へ正対させ、前縁を上げ（面法線 30° 上向き・投手の感覚値で未実測）、回転をかけない。
+# cp_offset は圧力中心を body 原点に置く（重心は thin_walled_cup 近似で天面側 +2.5mm）推測モデル。UI の「重心のずれ」と同じ。
+# 積分は固定刻み RK4（DOP853 はタンブリング系で刻み制御の揺らぎが ~1e-4 出るため）。
+name: F_attitude_diagnostics
+base_config: ../examples/overhand_drop.yaml
+base_overrides:
+  simulation.solver: rk4
+  simulation.output_hz: 240
+variants:
+  - name: straight_overhand
+    overrides: {}
+  - name: straight_overhand_cp_offset
+    overrides:
+      aerodynamics.moments.center_of_pressure_body_m: [0.0, 0.0, 0.0]
+  - name: knuckle
+    overrides:
+      initial_state:
+        position_world_m: [0.0, 0.0, 1.45]
+        speed_kmh: 50.0
+        launch_azimuth_deg: 0.0
+        launch_elevation_deg: 2.0
+        orientation_euler_deg: [0.0, 60.0, 0.0]
+        angular_velocity: {rpm: 0, axis_body: [0.0, 0.0, 1.0]}
+  - name: knuckle_cp_offset
+    overrides:
+      initial_state:
+        position_world_m: [0.0, 0.0, 1.45]
+        speed_kmh: 50.0
+        launch_azimuth_deg: 0.0
+        launch_elevation_deg: 2.0
+        orientation_euler_deg: [0.0, 60.0, 0.0]
+        angular_velocity: {rpm: 0, axis_body: [0.0, 0.0, 1.0]}
+      aerodynamics.moments.center_of_pressure_body_m: [0.0, 0.0, 0.0]
