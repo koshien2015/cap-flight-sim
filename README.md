@@ -283,6 +283,8 @@ simulation:
 | `E_drag_lift_sensitivity` | Cd と cl0 の感度。捕手面へ届くのに必要な係数の桁を見る |
 | `F_attitude_diagnostics` | 姿勢安定性の診断（Issue #1 Phase 1）。ストレート（オーバースロー）とナックル（天面を打者へ正対・前縁 30° 上げ・無回転）を、圧力中心のずれあり／なしで比べる。固定刻み RK4 |
 
+感度分析（Issue #1 Phase 2）は `uv run python scripts/phase2_sensitivity.py` で再現できます。ナックルとストレートの条件を1つずつ振り、結果と考察を `docs/phase2_sensitivity.md` にまとめています。
+
 ---
 
 ## 9. 実測値による検証方法（フィッティング）
