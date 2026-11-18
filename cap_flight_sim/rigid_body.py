@@ -10,6 +10,7 @@ from .coordinates import quat_derivative, quat_normalize
 from .models import AerodynamicResult, CapParameters, Environment, RigidBodyState
 
 INERTIA_METHODS = ("thin_walled_cup", "solid_cylinder", "thin_disk")
+RIGID_STATE_SIZE = 13
 
 
 class NonFiniteStateError(RuntimeError):
@@ -81,6 +82,11 @@ def angular_acceleration_body(
 AeroFunction = Callable[[RigidBodyState], AerodynamicResult]
 
 
+def wake_phase_from_vector(y: np.ndarray) -> float:
+    """状態ベクトル末尾の後流の位相。13 要素（後流の項が無効）なら 0。"""
+    return float(y[RIGID_STATE_SIZE]) if len(y) > RIGID_STATE_SIZE else 0.0
+
+
 def make_state_derivative(
     cap: CapParameters,
     environment: Environment,
@@ -90,6 +96,7 @@ def make_state_derivative(
     """13 要素状態 y=[r, v, q(wxyz), ω_body] の時間微分関数を生成する。
 
     RK4 / solve_ivp 双方で同じ関数を使う。力の記録には使わない（試行点でも呼ばれるため）。
+    y が 14 要素なら末尾は後流の位相 Φ（aerodynamics.wake が有効なときだけ足される）で、その微分も返す。
     """
     inertia = cap.inertia_tensor_body_kg_m2
     inertia_inv = np.linalg.inv(inertia)
@@ -104,12 +111,15 @@ def make_state_derivative(
             velocity_world_m_s=y[3:6],
             orientation_body_to_world=quat_normalize(q_raw),
             angular_velocity_body_rad_s=y[10:13],
+            wake_phase_rad=wake_phase_from_vector(y),
         )
         aero = aero_fn(state)
         acc = translational_acceleration(cap, environment, aero)
         alpha = angular_acceleration_body(inertia, inertia_inv, state.angular_velocity_body_rad_s, aero.moment_body_nm)
         dq = quat_derivative(q_raw, state.angular_velocity_body_rad_s, drift_gain)
         dy = np.concatenate([state.velocity_world_m_s, acc, dq, alpha])
+        if y.size > RIGID_STATE_SIZE:
+            dy = np.append(dy, aero.wake_phase_rate_rad_s)
         if not np.all(np.isfinite(dy)):
             raise NonFiniteStateError(f"non-finite derivative at t={t:.6f}")
         return dy

@@ -13,6 +13,8 @@ export interface ForceSet {
   drag: Vec3;
   lift: Vec3;
   magnus: Vec3;
+  /** 後流の非定常横力（実験的モデルが有効なときだけ） */
+  wake?: Vec3;
   total: Vec3;
 }
 

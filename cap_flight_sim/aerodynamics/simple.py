@@ -8,6 +8,9 @@
     M_pitch = q A_ref D Cm(α) · e_pitch         姿勢の安定化/不安定化
     M_damp = -½ρ|u| A_ref D R (c_spin ω_n + c_tumble ω_t)  回転抗力
     3項の内訳は moment_components_body_nm（center_of_pressure / pitch / damping）に出す
+後流の非定常項（wake.py。実験的・既定 OFF）
+    有効なときだけ、横力 F_w を合力に、モーメント M_w を合計モーメントに足す（内訳は wake）。
+    F_w は重心に作用させるので M_cp には入れない。moments トグルが OFF なら M_w も 0。
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ import numpy as np
 from ..coordinates import world_to_body
 from ..models import AerodynamicResult, CapParameters, Environment, ForceToggles, RigidBodyState
 from .base import compute_flow_geometry, magnus_direction
+from .wake import WakeParams, describe_wake, evaluate_wake
 
 DRAG_MODELS = ("projected_area", "constant", "quadratic_aoa")
 POST_STALL_MODES = ("decay", "hold")
@@ -66,6 +70,12 @@ class SimpleAerodynamicModel:
     moments: MomentParams = field(default_factory=MomentParams)
     toggles: ForceToggles = field(default_factory=ForceToggles)
     name: str = "simple_coefficient_model"
+    wake: WakeParams = field(default_factory=WakeParams)
+
+    @property
+    def uses_wake_phase(self) -> bool:
+        """True なら状態ベクトルの末尾に後流の位相 Φ を 1 要素足して積分する。"""
+        return self.wake.enabled
 
     def __post_init__(self) -> None:
         if self.drag.model not in DRAG_MODELS:
@@ -117,7 +127,7 @@ class SimpleAerodynamicModel:
         flow = compute_flow_geometry(state, cap, environment)
         zero = np.zeros(3)
         if flow.is_stationary:
-            return _stationary_result()
+            return _stationary_result(self.wake.enabled)
 
         qa = flow.dynamic_pressure_pa * cap.reference_area_m2
         alpha = flow.angle_of_attack_rad
@@ -139,6 +149,22 @@ class SimpleAerodynamicModel:
         else:
             moment, cm_pitch, components = zero, 0.0, _zero_moment_components()
 
+        wake_force = None
+        wake_phase_rate = 0.0
+        wake_diagnostics: dict[str, float] = {}
+        if self.wake.enabled:
+            loads = evaluate_wake(
+                self.wake, cap, flow.u_hat_world, flow.speed_m_s, flow.dynamic_pressure_pa, area_proj,
+                float(np.linalg.norm(state.angular_velocity_body_rad_s)), state.wake_phase_rad,
+            )
+            wake_force = loads.force_world_n
+            wake_phase_rate = loads.phase_rate_rad_s
+            wake_moment = world_to_body(state.orientation_body_to_world, loads.moment_world_nm) if self.toggles.moments else zero
+            force = force + wake_force
+            moment = moment + wake_moment
+            components = {**components, "wake": wake_moment}
+            wake_diagnostics = {"wake_spin_attenuation": loads.spin_attenuation}
+
         return AerodynamicResult(
             force_world_n=force,
             moment_body_nm=moment,
@@ -147,6 +173,8 @@ class SimpleAerodynamicModel:
             magnus_world_n=magnus,
             coefficients={"cd": cd, "cl": cl, "cy": cm_coef, "cm_pitch": cm_pitch},
             moment_components_body_nm=components,
+            wake_world_n=wake_force,
+            wake_phase_rate_rad_s=wake_phase_rate,
             diagnostics={
                 "speed_m_s": flow.speed_m_s,
                 "dynamic_pressure_pa": flow.dynamic_pressure_pa,
@@ -158,6 +186,7 @@ class SimpleAerodynamicModel:
                 "reynolds_number": flow.reynolds_number,
                 "lift_degenerate_face_on": flow.is_face_on,
                 "stationary": False,
+                **wake_diagnostics,
             },
         )
 
@@ -209,6 +238,7 @@ class SimpleAerodynamicModel:
             "magnus": vars(self.magnus),
             "moments": {**vars(self.moments)},
             "toggles": vars(self.toggles),
+            **({"wake": describe_wake(self.wake)} if self.wake.enabled else {}),
         }
 
 
@@ -223,15 +253,17 @@ def _zero_moment_components() -> dict[str, np.ndarray]:
     return {"center_of_pressure": np.zeros(3), "pitch": np.zeros(3), "damping": np.zeros(3)}
 
 
-def _stationary_result() -> AerodynamicResult:
+def _stationary_result(wake_enabled: bool = False) -> AerodynamicResult:
     zero = np.zeros(3)
     return AerodynamicResult(
         force_world_n=zero, moment_body_nm=zero, drag_world_n=zero, lift_world_n=zero, magnus_world_n=zero,
         coefficients={"cd": 0.0, "cl": 0.0, "cy": 0.0, "cm_pitch": 0.0},
-        moment_components_body_nm=_zero_moment_components(),
+        moment_components_body_nm={**_zero_moment_components(), **({"wake": zero} if wake_enabled else {})},
+        wake_world_n=zero if wake_enabled else None,
         diagnostics={
             "speed_m_s": 0.0, "dynamic_pressure_pa": 0.0, "angle_of_attack_deg": 0.0, "sideslip_deg": 0.0,
             "normal_to_wind_deg": float("nan"), "projected_area_m2": 0.0, "spin_parameter": 0.0,
             "reynolds_number": 0.0, "lift_degenerate_face_on": False, "stationary": True,
+            **({"wake_spin_attenuation": 0.0} if wake_enabled else {}),
         },
     )

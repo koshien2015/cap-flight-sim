@@ -8,12 +8,14 @@ from ..models import CapParameters, ForceToggles
 from .base import AerodynamicModel
 from .lookup_table import LookupTableAerodynamicModel, load_coefficient_table
 from .simple import DragParams, LiftParams, MagnusParams, MomentParams, SimpleAerodynamicModel
+from .wake import build_wake_params
 
 
 def build_aerodynamic_model(section: dict[str, Any], cap: CapParameters) -> AerodynamicModel:
     enable = section.get("enable", {}) or {}
     toggles = ForceToggles(**{k: bool(v) for k, v in enable.items()})
     model = section.get("model", "simple")
+    wake = build_wake_params(section.get("wake"))
     if model == "simple":
         moments = dict(section.get("moments", {}) or {})
         cp = moments.get("center_of_pressure_body_m")
@@ -25,7 +27,10 @@ def build_aerodynamic_model(section: dict[str, Any], cap: CapParameters) -> Aero
             magnus=MagnusParams(**(section.get("magnus", {}) or {})),
             moments=MomentParams(**moments),
             toggles=toggles,
+            wake=wake,
         )
+    if wake.enabled:
+        raise ValueError("aerodynamics.wake is only supported by the simple model")
     if model == "lookup_table":
         spec = section.get("lookup_table", {}) or {}
         if "path" not in spec:

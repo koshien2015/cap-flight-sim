@@ -31,6 +31,28 @@ describe('export round trip', () => {
     fresh.expected.finalPosition.forEach((v, i) => expect(Math.abs(v - committed.expected.finalPosition[i])).toBeLessThan(1e-12));
   });
 
+  it('writes the wake section only when the experimental wake model is on', () => {
+    // 無回転にして左右対称にする（後流の項が無ければ横変位は厳密に 0）
+    const base = { ...launchParamsFromPreset('flick_flat', PRESETS.flick_flat, DEFAULT_LAUNCH), rpm: 0 };
+    const off = buildRawConfig(PRESETS.flick_flat, base, 'off');
+    expect('wake' in (off.aerodynamics as Record<string, unknown>)).toBe(false);
+
+    const on = buildRawConfig(PRESETS.flick_flat, { ...base, wakeEnabled: true, wakeForceCoefficient: 0.2, wakeMomentCoefficient: 0.001, wakeSeed: 9 }, 'on');
+    const wake = (on.aerodynamics as Record<string, Record<string, unknown>>).wake;
+    expect(wake).toMatchObject({ force_coefficient: { value: 0.2, source: 'assumed' }, moment_coefficient: { value: 0.001, source: 'assumed' }, seed: 9 });
+
+    // 書き出した条件を読み直すと UI の値に戻り、OFF に戻すと wake が消える
+    const restored = launchParamsFromPreset('on', on, DEFAULT_LAUNCH);
+    expect(restored).toMatchObject({ wakeEnabled: true, wakeForceCoefficient: 0.2, wakeMomentCoefficient: 0.001, wakeSeed: 9 });
+    const offAgain = buildRawConfig(on, { ...restored, wakeEnabled: false }, 'off_again');
+    expect('wake' in (offAgain.aerodynamics as Record<string, unknown>)).toBe(false);
+
+    const yOff = runSimulation(configFromRaw(off)).frames.map((f) => f.y[1]);
+    const yOn = runSimulation(configFromRaw(on)).frames.map((f) => f.y[1]);
+    expect(Math.max(...yOff.map(Math.abs))).toBe(0);
+    expect(Math.max(...yOn.map(Math.abs))).toBeGreaterThan(1e-3);
+  });
+
   it('tilt sliders match experiment B definitions', () => {
     const r = (d: number) => (d * Math.PI) / 180;
     const close = (a: readonly number[], b: number[]) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], 12));

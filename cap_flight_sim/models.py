@@ -56,6 +56,8 @@ class RigidBodyState:
     velocity_world_m_s: np.ndarray  # shape (3,)
     orientation_body_to_world: np.ndarray  # quaternion [w, x, y, z]
     angular_velocity_body_rad_s: np.ndarray  # shape (3,)
+    # 後流の非定常項（aerodynamics.wake）の位相。無効なら常に 0 で、13 要素の状態ベクトルには含めない
+    wake_phase_rad: float = 0.0
 
     def to_vector(self) -> np.ndarray:
         return np.concatenate(
@@ -89,6 +91,9 @@ class AerodynamicResult:
     diagnostics: dict[str, float | str | bool]
     # モーメントの内訳（ボディ座標）。合計は moment_body_nm。診断用で力学計算には使わない
     moment_components_body_nm: dict[str, np.ndarray] = field(default_factory=dict)
+    # 後流の非定常横力（aerodynamics.wake が有効なときだけ値を持つ。force_world_n には加算済み）
+    wake_world_n: np.ndarray | None = None
+    wake_phase_rate_rad_s: float = 0.0
 
 
 @dataclass(frozen=True)

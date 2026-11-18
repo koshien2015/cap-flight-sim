@@ -33,7 +33,7 @@ export function toFlightDocument(result: SimResult): FlightDocument & { computed
       rpm: radSToRpm(norm(f.omegaWorld)),
       angleOfAttackDeg: f.aero.diagnostics.angle_of_attack_deg,
       sideslipDeg: f.aero.diagnostics.sideslip_deg,
-      forcesN: { drag: v3(f.aero.drag), lift: v3(f.aero.lift), magnus: v3(f.aero.magnus), total: v3(f.aero.force) },
+      forcesN: { drag: v3(f.aero.drag), lift: v3(f.aero.lift), magnus: v3(f.aero.magnus), ...(f.aero.wake ? { wake: v3(f.aero.wake) } : {}), total: v3(f.aero.force) },
     })),
     events: result.events.map((e) => ({ type: e.type, timeSec: e.timeSec })),
     terminationReason: result.terminationReason,

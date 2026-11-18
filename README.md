@@ -144,6 +144,30 @@ dq/dt   = ½ q ⊗ [0, ω_body] + k (1 − |q|²) q            （k = quaternion
 - 面が相対風に正対して揚力方向が決まらない場合（`n ∥ û`）は、揚力を 0 として扱い、警告を出します。
 - 抗力・揚力・マグヌス・モーメントは `aerodynamics.enable` で個別に ON/OFF できます。
 
+#### 後流の非定常項（`aerodynamics.wake`、実験的・既定 OFF）
+
+低速・低回転のキャップが、面の向きを保ったまま左右に揺れる軌道を調べるための項です（Issue #7）。相対風に垂直な時間変動の横力 `F_w` とモーメント `M_w` を、位相がランダムな正弦波の和で与えます。流れは解いていません。係数と周波数帯はすべて仮定値で、実測とは照合していません。
+
+```yaml
+aerodynamics:
+  wake:
+    force_coefficient: 0.15    # C_w（RMS）。0 なら横力なし
+    moment_coefficient: 0.0    # C_mw（RMS）。0 ならモーメントなし
+    seed: 3                    # 揺れ方を決める整数。同じ値なら同じ軌道になる
+```
+
+| 項 | 式 | 備考 |
+|---|---|---|
+| 横力 | `F_w = q A_proj(α) C_w g(S) [s1(Φ) e1 + s2(Φ) e2]` | `e1`・`e2` は相対風に垂直な world 固定の基底（水平飛行では左・上）。重心に作用させ、空力中心のずれのモーメントには入れない |
+| モーメント | `M_w = q A_proj(α) D C_mw g(S) [s3(Φ) e1 + s4(Φ) e2]` | `aerodynamics.enable.moments` が OFF なら 0。使うときは `tumble_damping` を併用する（減衰が無いと面の振れが溜まる） |
+| 位相 | `dΦ/dt = 2π|u|/D` | 有効なときだけ状態の末尾に足して積分する。周波数は無次元 `k = f D/|u|`（`reduced_frequencies`）で与える |
+| 回転への依存 | `g(S) = 1/(1 + (S/S0)²)`、`S = R|ω|/|u|` | 回転が速いほど連続的に弱まる。回転数のしきい値や球種の分岐は無い。`spin_parameter_scale: null` で依存を外せる |
+
+- 2つの係数がどちらも 0（既定）なら、この項を書かない設定と同じ結果になります。
+- 乱数は位相のずれを決めるときに一度だけ引きます。同じ `seed` なら何度計算しても同じ軌道になり、Python と TS、RK4 と適応刻みの差も既存の項と同じ程度に収まります（`tests/test_wake.py`、`viewer/tests/physics-parity.test.ts`）。
+- 係数表モデル（`lookup_table`）では使えません。
+- 復原モーメント（空力中心のずれ）で面が1回転する理由、姿勢の乱れだけでは揺れが出ないこと、仮定と未検証の点は `docs/issue7_wake_model.md` にまとめています。
+
 **注意（簡易モデルの限界）**
 - **キャップは球でも円柱でもありません。** マグヌス式は球・円柱の式を流用した暫定近似です。
 - `projected_area` の抗力は、円筒の幾何投影面積による検証前の近似です。
@@ -184,6 +208,9 @@ CFD・風洞・実測の結果は、この CSV / Parquet スキーマに変換�
 | `lift.cl0` | 0 | 表裏非対称の効果は未知 |
 | `magnus.coefficient` | 1.0（C_M = S）、上限 0.5 | 球の低スピン域の桁を借用した暫定値 |
 | モーメント係数・回転減衰 | 0 | 未知のため 0 から開始 |
+| `wake.force_coefficient` / `wake.moment_coefficient` | 0（OFF） | 後流の非定常項。比較では 0.15 / 0.001 を使ったが、根拠になる実測は無い |
+| `wake.reduced_frequencies` / `wake.weights` | 0.006・0.011・0.02 / 1.0・0.8・0.5 | 揺れ1回の飛行距離が 5.0・2.7・1.5 m になる帯域。観察に見た目が合うように置いた値 |
+| `wake.spin_parameter_scale` | 0.05 | この値のスピンパラメータで振幅が半分になる。未検証 |
 
 ---
 
@@ -283,7 +310,11 @@ simulation:
 | `E_drag_lift_sensitivity` | Cd と cl0 の感度。捕手面へ届くのに必要な係数の桁を見る |
 | `F_attitude_diagnostics` | 姿勢安定性の診断（Issue #1 Phase 1）。ストレート（オーバースロー）とナックル（天面を打者へ正対・前縁 30° 上げ・無回転）を、圧力中心のずれあり／なしで比べる。固定刻み RK4 |
 
+| `G_wake_unsteady` | 低速・低回転の横揺れ（Issue #7）。面を上向きにした無回転のキャップで、復原モーメントで面が1回転する条件と、後流の非定常項（横力だけ／モーメントだけ／両方）を比べる。固定刻み RK4 |
+
 感度分析（Issue #1 Phase 2）は `uv run python scripts/phase2_sensitivity.py` で再現できます。ナックルとストレートの条件を1つずつ振り、結果と考察を `docs/phase2_sensitivity.md` にまとめています。
+
+横揺れの診断と後流の非定常項の比較（Issue #7）は `uv run python scripts/issue7_wake_study.py` で再現できます。結果は `docs/issue7_wake_model.md` にまとめています。
 
 ---
 
@@ -334,6 +365,7 @@ simulation:
   - 傾き（右傾き / 前縁上げ / 向き。定義は実験 B と同じ）
   - 回転数と回転軸（キャップ自身の軸 / world の各軸、逆回転）
   - 力の ON/OFF と主要係数（すべて assumed として書き出し）
+  - 推測モデルの ON/OFF（重心のずれによる復原モーメント、後流の非定常な横力・モーメント）。後流の項は係数とシードを変えられ、OFF のときは書き出す JSON に `wake` を含めません
 - 「比較用に固定」で結果を残して重ねられます。ブラウザで計算した結果は、一覧に「ブラウザ計算」と表示されます。
 - 「条件をJSONで保存」で出る JSON は、そのまま Python CLI で再現できます（`solver: rk4` なので結果は一致します）。
 
@@ -351,7 +383,7 @@ simulation:
 | テスト | 内容 |
 |---|---|
 | `tests/test_regression_baseline.py` | 通常球の代表プリセット6件を既定の積分器（DOP853）で計算し（`spec_example_tumble` は DOP853 だと OS によって結果がずれるため RK4）、凍結した基準（`tests/regression/normal_pitches_baseline.json`）と照合する。対象は軌道・速度・面法線・角速度・着地または捕手面到達時の状態。ゴールデンと違って自動では再生成されないため、軌道の意図しない変化を検出できる |
-| `viewer/tests/physics-parity.test.ts` | 状態微分・空気力の内訳（7バリエーション × 12状態）と RK4 軌道8ケース（ナックルのリリース姿勢＝天面を打者へ正対・前縁を上げる・無回転の条件を含む）を照合する。着地・捕手面到達時の位置と面法線も照合対象。実測の差は位置 ~2e-15 m、到達時刻 ~3e-16 s |
+| `viewer/tests/physics-parity.test.ts` | 状態微分・空気力の内訳（9バリエーション × 12状態）と RK4 軌道10ケース（ナックルのリリース姿勢＝天面を打者へ正対・前縁を上げる・無回転の条件と、後流の非定常項を有効にした条件を含む）を照合する。着地・捕手面到達時の位置と面法線も照合対象。実測の差は位置 ~2e-15 m、到達時刻 ~3e-16 s |
 | `tests/test_ts_goldens.py` | ゴールデンやプリセットの古さを検出する。OS による浮動小数の最下位ビットの差は相対 1e-12 まで許す。キー・真偽値・配列長は完全一致で比べる。UI が書き出した JSON を Python で再計算して同じ終了位置になることも確認 |
 | `viewer/tests/export-roundtrip.test.ts` | UI の書き出し形式と、傾き定義が実験 B と一致すること |
 
@@ -382,7 +414,7 @@ CFD を実施していない係数を CFD 由来と表示しないでくださ�
 cap_flight_sim/
   cli.py  config.py  models.py  coordinates.py  rigid_body.py  integrators.py
   simulation.py  events.py  experiments.py
-  aerodynamics/  base.py  simple.py  lookup_table.py  factory.py  tabulate.py
+  aerodynamics/  base.py  simple.py  wake.py  lookup_table.py  factory.py  tabulate.py
   fitting/       trajectory_loader.py  optimizer.py  losses.py
   outputs/       serializers.py  plots.py  summaries.py
 examples/  experiments/  fitting/  observed/（合成データ）  tests/
