@@ -1,0 +1,41 @@
+# 実験G（Issue #7）: 低速・低回転キャップの横揺れ。復原モーメントで面が 1 回転する条件の再現と、後流の非定常項（実験的・既定 OFF）の比較。
+# 姿勢 = 円形面を概ね上向き（前縁を 10° 上げる）・無回転・40 km/h。係数はすべて assumed（実測ではない）。
+# cp_on は圧力中心を body 原点に置く推測モデル（ビューアの「重心のずれによる復原モーメント」ON の既定と同じ）。
+# wake は aerodynamics.wake（相対風に垂直な時間変動の横力 F_w とモーメント M_w。流れは解いていない）。シードを変えると揺れ方が変わる。
+# 積分は固定刻み RK4。診断と数値のまとめは docs/issue7_wake_model.md、全スイープは scripts/issue7_wake_study.py。
+name: G_wake_unsteady
+base_config: ../examples/overhand_drop.yaml
+base_overrides:
+  simulation.solver: rk4
+  simulation.output_hz: 240
+  initial_state:
+    position_world_m: [0.0, 0.0, 1.45]
+    speed_kmh: 40.0
+    launch_azimuth_deg: 0.0
+    launch_elevation_deg: 5.0
+    orientation_euler_deg: [0.0, -10.0, 0.0]
+    angular_velocity: {rpm: 0, axis_body: [0.0, 0.0, 1.0]}
+variants:
+  - name: no_moment            # 現行の既定。姿勢は変わらず、横にも動かない
+    overrides: {}
+  - name: cp_on_flips          # 復原モーメント ON。面が縦に 1 回転する（再現条件）
+    overrides:
+      aerodynamics.moments.center_of_pressure_body_m: [0.0, 0.0, 0.0]
+  - name: cp_on_damped         # 減衰を足しても、面は上向きを保たない
+    overrides:
+      aerodynamics.moments.center_of_pressure_body_m: [0.0, 0.0, 0.0]
+      aerodynamics.moments.tumble_damping: 2.0
+  - name: wake_force_seed3     # 横力だけ。面は上向きのまま左右に揺れる
+    overrides:
+      aerodynamics.wake: {force_coefficient: 0.15, seed: 3}
+  - name: wake_force_seed4
+    overrides:
+      aerodynamics.wake: {force_coefficient: 0.15, seed: 4}
+  - name: wake_moment_only     # モーメントだけ（減衰つき）。面が数度ゆれる
+    overrides:
+      aerodynamics.wake: {moment_coefficient: 0.001, seed: 3}
+      aerodynamics.moments.tumble_damping: 2.0
+  - name: wake_force_moment    # 両方（減衰つき）
+    overrides:
+      aerodynamics.wake: {force_coefficient: 0.15, moment_coefficient: 0.001, seed: 3}
+      aerodynamics.moments.tumble_damping: 2.0
