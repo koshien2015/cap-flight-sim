@@ -43,6 +43,11 @@ const ATTITUDE_SLIDERS: SliderSpec[] = [
 ];
 const SPIN_SLIDERS: SliderSpec[] = [{ key: 'rpm', label: '回転数', min: 0, max: 5000, step: 50, unit: 'rpm' }];
 const CP_SLIDER: SliderSpec = { key: 'cpBodyZmm', label: '空力中心の位置（+ = 閉じた面の側、0 = 幾何中心）', min: -7.5, max: 7.5, step: 0.25, unit: 'mm' };
+const WAKE_SLIDERS: SliderSpec[] = [
+  { key: 'wakeForceCoefficient', label: '横力の係数 C_w（RMS）', min: 0, max: 0.5, step: 0.01, unit: '' },
+  { key: 'wakeMomentCoefficient', label: 'モーメントの係数 C_mw（RMS）', min: 0, max: 0.01, step: 0.0005, unit: '' },
+  { key: 'wakeSeed', label: '揺れ方の種（シード）', min: 1, max: 50, step: 1, unit: '' },
+];
 const COEFF_SLIDERS: SliderSpec[] = [
   { key: 'cdProjected', label: 'Cd（投影面積基準）', min: 0, max: 2, step: 0.05, unit: '' },
   { key: 'clAlphaPerRad', label: '揚力傾斜 Clα', min: 0, max: 4, step: 0.1, unit: '/rad' },
@@ -50,7 +55,8 @@ const COEFF_SLIDERS: SliderSpec[] = [
   { key: 'magnusCoefficient', label: 'マグヌス係数', min: 0, max: 4, step: 0.1, unit: '' },
   { key: 'cmPitch0', label: 'ピッチモーメント cm0', min: -0.1, max: 0.1, step: 0.005, unit: '' },
   { key: 'spinDamping', label: '自転減衰', min: 0, max: 0.2, step: 0.005, unit: '' },
-  { key: 'tumbleDamping', label: 'タンブル減衰', min: 0, max: 0.2, step: 0.005, unit: '' },
+  // 上限 5: 面の振れを抑えるには 1 以上が要る（docs/issue7_wake_model.md の結果 2）
+  { key: 'tumbleDamping', label: 'タンブル減衰', min: 0, max: 5, step: 0.005, unit: '' },
 ];
 
 export interface SimPanelHandlers {
@@ -178,6 +184,11 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     Array.from(senseSelect.options).forEach((o) => (o.textContent = senseText(o.value as RotationSense)));
   }
   const [cpRow, cpInput] = check('重心のずれによる復原モーメント（推測・未検証）', () => params.cpOffsetEnabled, (c) => set({ cpOffsetEnabled: c }));
+  const [wakeRow, wakeInput] = check('後流の非定常な横力・モーメント（推測・未検証）', () => params.wakeEnabled, (c) => set({ wakeEnabled: c }));
+  const wakeInfo = el('div', {
+    className: 'note',
+    textContent: '相対風に垂直な、ゆっくり変動する力を足す（流れは解いていない。係数・周波数帯は仮定値）。シードごとに揺れ方が変わる。回転が速いほど弱まる。モーメントを使うときは、係数の欄の「タンブル減衰」を 2 程度にする（減衰が無いと面の振れが溜まる）。',
+  });
   const toggles = (['drag', 'lift', 'magnus', 'moments'] as const).map((k) =>
     check({ drag: '抗力', lift: '揚力', magnus: 'マグヌス', moments: 'モーメント' }[k], () => params.enable[k], (c) => set({ enable: { ...params.enable, [k]: c } })),
   );
@@ -189,8 +200,9 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     senseSelect.value = params.rotationSense;
     syncSenseOptions();
     cpInput.checked = params.cpOffsetEnabled;
+    wakeInput.checked = params.wakeEnabled;
     toggles.forEach(([, input], i) => (input.checked = params.enable[(['drag', 'lift', 'magnus', 'moments'] as const)[i]]));
-    const specs = [...LAUNCH_SLIDERS, ...ATTITUDE_SLIDERS, ...SPIN_SLIDERS, CP_SLIDER, ...COEFF_SLIDERS];
+    const specs = [...LAUNCH_SLIDERS, ...ATTITUDE_SLIDERS, ...SPIN_SLIDERS, CP_SLIDER, ...WAKE_SLIDERS, ...COEFF_SLIDERS];
     sliderInputs.forEach(([input, value], key) => {
       input.value = String(params[key]);
       value.textContent = `${params[key]} ${specs.find((s) => s.key === key)?.unit ?? ''}`;
@@ -228,6 +240,7 @@ export function mountSimPanel(container: HTMLElement, handlers: SimPanelHandlers
     el('h3', { textContent: 'スピン' }), ...SPIN_SLIDERS.map(slider), axisRow, senseRow,
     vectors,
     el('h3', { textContent: '推測モデル（ON/OFF）' }), cpRow, slider(CP_SLIDER), cpInfo,
+    wakeRow, ...WAKE_SLIDERS.map(slider), wakeInfo,
     el('details', {}, [
       el('summary', { textContent: '空気力・係数（すべて仮定値）' }),
       el('div', { className: 'row' }, toggles.map(([row]) => row)),

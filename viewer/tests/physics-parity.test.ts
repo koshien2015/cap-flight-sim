@@ -56,12 +56,15 @@ describe('derivative & aero parity', () => {
       it(`${c.variant} / ${st.name}`, () => {
         expectClose(fun(0, st.y), st.dydt, 'dydt');
         const q = qNormalize(st.y.slice(6, 10) as unknown as Q4);
-        const aero = evaluateAero(params, { velocity: st.y.slice(3, 6) as unknown as V3, q, omegaBody: st.y.slice(10, 13) as unknown as V3 }, cfg.cap, cfg.environment);
+        const aero = evaluateAero(params, { velocity: st.y.slice(3, 6) as unknown as V3, q, omegaBody: st.y.slice(10, 13) as unknown as V3, wakePhase: st.y[13] ?? 0 }, cfg.cap, cfg.environment);
         expectClose(aero.force, st.force, 'force');
         expectClose(aero.momentBody, st.moment, 'moment', REL, 1e-18);
         expectClose(aero.drag, st.drag, 'drag');
         expectClose(aero.lift, st.lift, 'lift');
         expectClose(aero.magnus, st.magnus, 'magnus');
+        const wake = (st as { wake?: number[] }).wake;
+        expect(aero.wake === undefined, 'wake presence').toBe(wake === undefined);
+        if (aero.wake && wake) expectClose(aero.wake, wake, 'wake', REL, 1e-16);
         const components = aero.momentComponents as Record<string, readonly number[]>;
         expect(Object.keys(components).sort(), 'moment component keys').toEqual(Object.keys(st.momentComponents).sort());
         for (const [k, v] of Object.entries(st.momentComponents)) expectClose(components[k], v, `moment.${k}`, REL, 1e-18);

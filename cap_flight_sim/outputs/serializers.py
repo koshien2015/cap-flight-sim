@@ -74,6 +74,16 @@ def moment_component_columns(components: dict[str, np.ndarray]) -> dict[str, flo
     return {f"moment_{name}_{axis}": float(vec[i]) for name, vec in components.items() for i, axis in enumerate("xyz")}
 
 
+def wake_columns(frame) -> dict[str, float]:
+    """後流の非定常横力と位相。aerodynamics.wake が有効なときだけ列を足す（無効時の CSV の列を変えない）。"""
+    wake = frame.aero.wake_world_n
+    if wake is None:
+        return {}
+    return {"wake_x": float(wake[0]), "wake_y": float(wake[1]), "wake_z": float(wake[2]),
+            "wake_phase": frame.state.wake_phase_rad,
+            "wake_spin_attenuation": frame.aero.diagnostics.get("wake_spin_attenuation", np.nan)}
+
+
 def timeseries_dataframe(result: SimulationResult) -> pd.DataFrame:
     rows = []
     inertia = result.config.cap.inertia_tensor_body_kg_m2
@@ -111,6 +121,7 @@ def timeseries_dataframe(result: SimulationResult) -> pd.DataFrame:
                 "cd": a.coefficients.get("cd", np.nan),
                 "cl": a.coefficients.get("cl", np.nan),
                 "cy": a.coefficients.get("cy", np.nan),
+                **wake_columns(f),
             }
         )
     return pd.DataFrame(rows)
@@ -196,6 +207,7 @@ def build_viewer_document(result: SimulationResult) -> dict[str, Any]:
                     "drag": a.drag_world_n,
                     "lift": a.lift_world_n,
                     "magnus": a.magnus_world_n,
+                    **({} if a.wake_world_n is None else {"wake": a.wake_world_n}),
                     "total": a.force_world_n,
                 },
             }

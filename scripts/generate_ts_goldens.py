@@ -62,6 +62,24 @@ AERO_VARIANTS: dict[str, dict[str, Any]] = {
     "thin_disk_all_off": {"cap.inertia_method": "thin_disk",
                           "aerodynamics.enable": {"drag": False, "lift": False, "magnus": False, "moments": False}},
     "only_magnus": {"aerodynamics.enable": {"drag": False, "lift": False, "magnus": True, "moments": True}},
+    # 後流の非定常項（Issue #7 の実験的モデル）。有効なときだけ状態が 14 要素になり、wake の内訳が付く
+    "wake_force_moment": {"aerodynamics.wake": {"force_coefficient": 0.15, "moment_coefficient": 0.002, "seed": 7},
+                          "aerodynamics.moments": {"center_of_pressure_body_m": [0.0, 0.0, 0.0], "tumble_damping": 0.5}},
+    "wake_custom_bands_no_spin_scale": {"aerodynamics.wake": {
+        "force_coefficient": 0.3, "seed": 4294967295, "reduced_frequencies": [0.003, 0.05], "weights": [0.4, 1.3],
+        "spin_parameter_scale": None}, "aerodynamics.enable": {"drag": True, "lift": True, "magnus": True, "moments": False}},
+}
+WAKE_PHASE_RAD = 1234.5  # 後流が有効な変種で照合に使う位相（状態ベクトルの 14 番目）
+
+
+FACE_UP_LOW_SPIN: dict[str, Any] = {
+    "initial_state": {
+        "position_world_m": [0.0, 0.0, 1.45],
+        "speed_kmh": 40.0,
+        "launch_elevation_deg": 5.0,
+        "orientation_euler_deg": [0.0, -10.0, 0.0],
+        "angular_velocity": {"rpm": 30, "axis_body": [0.0, 0.0, 1.0]},
+    },
 }
 
 
@@ -115,7 +133,11 @@ def derivative_cases() -> list[dict[str, Any]]:
         for name, vel, q, omega in STATES:
             q_scaled = np.asarray(q, dtype=float) * 1.001  # ノルム≠1 のときのドリフト項も照合する
             y = np.concatenate([[0.1, -0.2, 1.3], vel, q_scaled, omega])
-            state = RigidBodyState(0.0, y[0:3], y[3:6], quat_normalize(y[6:10]), y[10:13])
+            phase = 0.0
+            if getattr(model, "uses_wake_phase", False):
+                phase = WAKE_PHASE_RAD
+                y = np.append(y, phase)
+            state = RigidBodyState(0.0, y[0:3], y[3:6], quat_normalize(y[6:10]), y[10:13], phase)
             aero = model.evaluate(state, cfg.cap, cfg.environment)
             states.append({
                 "name": name,
@@ -126,6 +148,7 @@ def derivative_cases() -> list[dict[str, Any]]:
                 "drag": _floats(aero.drag_world_n),
                 "lift": _floats(aero.lift_world_n),
                 "magnus": _floats(aero.magnus_world_n),
+                **({} if aero.wake_world_n is None else {"wake": _floats(aero.wake_world_n)}),
                 "momentComponents": {k: _floats(v) for k, v in aero.moment_components_body_nm.items()},
                 "coefficients": {k: float(v) for k, v in aero.coefficients.items()},
                 "diagnostics": {k: (float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v)
@@ -155,6 +178,12 @@ def trajectory_cases(presets: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
             "initial_state.speed_kmh": 50.0,
             "initial_state.orientation_euler_deg": [0.0, 60.0, 0.0],
             "initial_state.angular_velocity": {"rpm": 0, "axis_body": [0.0, 0.0, 1.0]}}),
+        # 後流の非定常項（Issue #7）: 面を概ね上向き（前縁 10° 上げ）・低回転。横力だけ／横力＋モーメントの 2 通り
+        "face_up_wake_force": apply_overrides(presets["flick_flat"], {**FACE_UP_LOW_SPIN, "aerodynamics.wake": {
+            "force_coefficient": 0.15, "seed": 3}}),
+        "face_up_wake_force_moment": apply_overrides(presets["flick_flat"], {**FACE_UP_LOW_SPIN, "aerodynamics.wake": {
+            "force_coefficient": 0.15, "moment_coefficient": 0.001, "seed": 5},
+            "aerodynamics.moments.tumble_damping": 2.0}),
     }
     cases = []
     for name, raw in selected.items():

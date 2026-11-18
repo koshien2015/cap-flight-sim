@@ -125,7 +125,7 @@ export interface SimResult {
 
 function makeFrame(t: number, yRaw: number[], cfg: SimConfig, params: SimpleModelParams): SimFrame {
   const q = qNormalize([yRaw[6], yRaw[7], yRaw[8], yRaw[9]] as unknown as Q4);
-  const y = [...yRaw.slice(0, 6), ...q, ...yRaw.slice(10, 13)];
+  const y = [...yRaw.slice(0, 6), ...q, ...yRaw.slice(10)]; // 14 要素なら末尾は後流の位相
   const R = qToMatrix(q);
   return {
     t,
@@ -158,6 +158,8 @@ function sampleFrames(segments: Segment[], y0: number[], times: number[], cfg: S
 export function runSimulation(cfg: SimConfig): SimResult {
   const params = buildSimpleModelParams(cfg.aerodynamics);
   const fun = makeDerivative(cfg, params);
+  // 後流の位相 Φ は有効なときだけ積分する（無効時の状態は 13 要素のまま）
+  const y0 = params.evaluateWake ? [...cfg.y0, 0] : cfg.y0;
   const s = cfg.settings;
   const warnings = [...cfg.warnings];
   if (s.solver !== 'rk4') warnings.push('ブラウザ版は固定刻み RK4 で計算（Python の solve_ivp 結果とは ~1e-4 m 程度の差があり得る）');
@@ -167,7 +169,7 @@ export function runSimulation(cfg: SimConfig): SimResult {
   let reason = 'max_time';
 
   try {
-    for (const seg of rk4Segments(fun, 0, cfg.y0, s.durationSec, s.fixedStepSec)) {
+    for (const seg of rk4Segments(fun, 0, y0, s.durationSec, s.fixedStepSec)) {
       const found = specs
         .map((spec) => ({ spec, t: locate(spec, seg) }))
         .filter((h): h is { spec: EventSpec; t: number } => h.t !== null)
@@ -194,7 +196,7 @@ export function runSimulation(cfg: SimConfig): SimResult {
   }
 
   const tFinal = segments.length ? segments[segments.length - 1].t1 : 0;
-  const frames = sampleFrames(segments, cfg.y0, outputTimes(tFinal, s.outputHz), cfg, params);
+  const frames = sampleFrames(segments, y0, outputTimes(tFinal, s.outputHz), cfg, params);
   const events: SimResult['events'] = [
     { type: 'release', timeSec: 0 },
     ...hits.map((h) => ({ type: h.name, timeSec: h.t, frame: makeFrame(h.t, h.seg.interp(h.t), cfg, params) })),

@@ -42,6 +42,14 @@ export interface LaunchParams {
    */
   cpOffsetEnabled: boolean;
   cpBodyZmm: number;
+  /**
+   * 推測モデル: 後流の非定常性による時間変動の横力・モーメント（Issue #7 の実験的モデル。係数はすべて仮定値）。
+   * OFF のときは書き出す設定に wake を含めない（既存の条件の結果を変えないため）。
+   */
+  wakeEnabled: boolean;
+  wakeForceCoefficient: number;
+  wakeMomentCoefficient: number;
+  wakeSeed: number;
 }
 
 export const DEFAULT_LAUNCH: LaunchParams = {
@@ -67,6 +75,10 @@ export const DEFAULT_LAUNCH: LaunchParams = {
   tumbleDamping: 0,
   cpOffsetEnabled: false,
   cpBodyZmm: 0,
+  wakeEnabled: false,
+  wakeForceCoefficient: 0.15,
+  wakeMomentCoefficient: 0,
+  wakeSeed: 1,
 };
 
 const BASE_NORMAL: Record<BaseAttitude, V3> = { flat: [0, 0, 1], edge_on: [0, 1, 0] };
@@ -118,8 +130,9 @@ export function buildRawConfig(preset: Record<string, unknown>, p: LaunchParams,
   const init = Object.fromEntries(Object.entries(section(raw, 'initial_state')).filter(([k]) => !ORIENTATION_KEYS.includes(k)));
   delete init.speed_m_s;
   delete init.velocity_world_m_s;
-  const aero = section(raw, 'aerodynamics');
+  const { wake: presetWake, ...aero } = section(raw, 'aerodynamics');
   const assumed = (value: number, note?: string) => ({ value, source: 'assumed', ...(note ? { note } : {}) });
+  const wakeNote = '推測: 後流の非定常性による時間変動（流れは解いていない。実測と未照合）';
   return {
     ...raw,
     name,
@@ -150,6 +163,16 @@ export function buildRawConfig(preset: Record<string, unknown>, p: LaunchParams,
           ? { value: [0, 0, p.cpBodyZmm / 1000], source: 'assumed', note: '推測: 重心のずれによる復原モーメント（空力中心の位置は未検証）' }
           : null,
       },
+      ...(p.wakeEnabled
+        ? {
+            wake: {
+              ...(typeof presetWake === 'object' && presetWake !== null ? presetWake : {}),
+              force_coefficient: assumed(p.wakeForceCoefficient, wakeNote),
+              moment_coefficient: assumed(p.wakeMomentCoefficient, wakeNote),
+              seed: p.wakeSeed,
+            },
+          }
+        : {}),
     },
   };
 }
@@ -190,7 +213,17 @@ export function launchParamsFromPreset(name: string, preset: Record<string, unkn
     spinDamping: num(section(aero, 'moments').spin_damping, 0),
     tumbleDamping: num(section(aero, 'moments').tumble_damping, 0),
     ...cpFromPreset(section(aero, 'moments').center_of_pressure_body_m),
+    ...wakeFromPreset(section(aero, 'wake'), current),
   };
+}
+
+function wakeFromPreset(wake: Record<string, unknown>, current: LaunchParams): Pick<LaunchParams, 'wakeEnabled' | 'wakeForceCoefficient' | 'wakeMomentCoefficient' | 'wakeSeed'> {
+  const force = typeof wake.force_coefficient === 'number' ? wake.force_coefficient : 0;
+  const moment = typeof wake.moment_coefficient === 'number' ? wake.moment_coefficient : 0;
+  if (!(force > 0 || moment > 0)) {
+    return { wakeEnabled: false, wakeForceCoefficient: current.wakeForceCoefficient, wakeMomentCoefficient: current.wakeMomentCoefficient, wakeSeed: current.wakeSeed };
+  }
+  return { wakeEnabled: true, wakeForceCoefficient: force, wakeMomentCoefficient: moment, wakeSeed: typeof wake.seed === 'number' ? wake.seed : current.wakeSeed };
 }
 
 function cpFromPreset(cp: unknown): Pick<LaunchParams, 'cpOffsetEnabled' | 'cpBodyZmm'> {

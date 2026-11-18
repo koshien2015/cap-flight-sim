@@ -4,6 +4,7 @@
  */
 import type { CapParams, EnvironmentParams } from './config';
 import { ConfigError } from './config';
+import { makeWakeEvaluator, validateWakeParams, WAKE_DEFAULTS, wakeEnabled, type WakeLoads, type WakeParams } from './wake';
 import {
   add,
   cross,
@@ -29,9 +30,13 @@ export interface AeroResult {
   drag: V3;
   lift: V3;
   magnus: V3;
+  /** 後流の非定常横力（aerodynamics.wake が有効なときだけ。force には加算済み） */
+  wake?: V3;
+  /** 後流の位相の時間微分 dΦ/dt [rad/s]（無効なら 0） */
+  wakePhaseRate: number;
   coefficients: { cd: number; cl: number; cy: number; cm_pitch: number };
-  /** モーメントの内訳（ボディ座標）。合計は momentBody。診断用 */
-  momentComponents: { center_of_pressure: V3; pitch: V3; damping: V3 };
+  /** モーメントの内訳（ボディ座標）。合計は momentBody。診断用。wake は有効なときだけ */
+  momentComponents: { center_of_pressure: V3; pitch: V3; damping: V3; wake?: V3 };
   diagnostics: {
     speed_m_s: number;
     dynamic_pressure_pa: number;
@@ -43,6 +48,7 @@ export interface AeroResult {
     reynolds_number: number;
     lift_degenerate_face_on: boolean;
     stationary: boolean;
+    wake_spin_attenuation?: number;
   };
 }
 
@@ -50,6 +56,8 @@ export interface BodyState {
   velocity: V3;
   q: Q4; // 正規化済み
   omegaBody: V3;
+  /** 後流の位相 Φ [rad]（aerodynamics.wake が有効なときだけ使う） */
+  wakePhase?: number;
 }
 
 interface Flow {
@@ -113,9 +121,12 @@ export interface SimpleModelParams {
     tumble_damping: number;
   };
   enable: { drag: boolean; lift: boolean; magnus: boolean; moments: boolean };
+  wake: WakeParams;
+  /** wake が有効なときだけ持つ評価関数（位相のずれを設定ごとに一度だけ引く） */
+  evaluateWake: ((...args: Parameters<ReturnType<typeof makeWakeEvaluator>>) => WakeLoads) | null;
 }
 
-const DEFAULTS: SimpleModelParams = {
+const DEFAULTS: Omit<SimpleModelParams, 'wake' | 'evaluateWake'> = {
   drag: { model: 'projected_area', cd_base: 1.0, cd_projected: 1.0, cd_alpha2_per_rad2: 0.0 },
   lift: { cl0: 0.0, cl_alpha_per_rad: 0.0, stall_angle_deg: 45.0, post_stall: 'decay' },
   magnus: { model: 'linear_spin_parameter', coefficient: 0.0, max_coefficient: 1.0 },
@@ -132,12 +143,19 @@ function merged<T extends object>(defaults: T, given: unknown, section: string):
 }
 
 export function buildSimpleModelParams(aero: Record<string, unknown>): SimpleModelParams {
+  if (aero.wake !== undefined && aero.wake !== null && (typeof aero.wake !== 'object' || Array.isArray(aero.wake))) {
+    throw new ConfigError('aerodynamics.wake must be a mapping');
+  }
+  const wake = merged(WAKE_DEFAULTS, aero.wake, 'wake');
+  validateWakeParams(wake);
   const p: SimpleModelParams = {
     drag: merged(DEFAULTS.drag, aero.drag, 'drag'),
     lift: merged(DEFAULTS.lift, aero.lift, 'lift'),
     magnus: merged(DEFAULTS.magnus, aero.magnus, 'magnus'),
     moments: merged(DEFAULTS.moments, aero.moments, 'moments'),
     enable: merged(DEFAULTS.enable, aero.enable, 'enable'),
+    wake,
+    evaluateWake: wakeEnabled(wake) ? makeWakeEvaluator(wake) : null,
   };
   if (!['projected_area', 'constant', 'quadratic_aoa'].includes(p.drag.model)) throw new ConfigError('invalid drag.model');
   if (!['decay', 'hold'].includes(p.lift.post_stall)) throw new ConfigError('invalid lift.post_stall');
@@ -174,7 +192,7 @@ export function magnusCoefficient(p: SimpleModelParams, spinParameter: number): 
 }
 
 const STATIONARY: AeroResult = {
-  force: ZERO3, momentBody: ZERO3, drag: ZERO3, lift: ZERO3, magnus: ZERO3,
+  force: ZERO3, momentBody: ZERO3, drag: ZERO3, lift: ZERO3, magnus: ZERO3, wakePhaseRate: 0,
   coefficients: { cd: 0, cl: 0, cy: 0, cm_pitch: 0 },
   momentComponents: { center_of_pressure: ZERO3, pitch: ZERO3, damping: ZERO3 },
   diagnostics: {
@@ -185,7 +203,15 @@ const STATIONARY: AeroResult = {
 
 export function evaluateAero(p: SimpleModelParams, s: BodyState, cap: CapParams, env: EnvironmentParams): AeroResult {
   const flow = flowGeometry(s, cap, env);
-  if (!flow) return STATIONARY;
+  if (!flow) {
+    if (!p.evaluateWake) return STATIONARY;
+    return {
+      ...STATIONARY,
+      wake: ZERO3,
+      momentComponents: { ...STATIONARY.momentComponents, wake: ZERO3 },
+      diagnostics: { ...STATIONARY.diagnostics, wake_spin_attenuation: 0 },
+    };
+  }
   const qa = flow.qDyn * cap.referenceAreaM2;
   const [cd, area] = dragCoefficient(p, flow.alpha, cap);
   const drag = p.enable.drag ? scale(flow.uHat, -qa * cd) : ZERO3;
@@ -194,7 +220,7 @@ export function evaluateAero(p: SimpleModelParams, s: BodyState, cap: CapParams,
   const cy = magnusCoefficient(p, flow.spinParameter);
   const magnusDir = safeUnit(cross(flow.omegaPerp, flow.u));
   const magnus = p.enable.magnus ? scale(magnusDir, qa * cy) : ZERO3;
-  const force = add(add(drag, lift), magnus);
+  let force = add(add(drag, lift), magnus);
 
   // 合計の足し算の順序は内訳導入前と同じに保つ（Python と同じく軌道を変えないため）
   let moment: V3 = ZERO3;
@@ -219,10 +245,26 @@ export function evaluateAero(p: SimpleModelParams, s: BodyState, cap: CapParams,
     dampingMoment = scale(damping, -1);
   }
 
+  // 後流の非定常項（実験的・既定 OFF）。横力は重心に作用させるので、上の圧力中心のモーメントには入れない
+  let wake: Pick<AeroResult, 'wake'> = {};
+  let wakeMoment: { wake?: V3 } = {};
+  let wakeDiagnostics: { wake_spin_attenuation?: number } = {};
+  let wakePhaseRate = 0;
+  if (p.evaluateWake) {
+    const loads = p.evaluateWake(cap, flow.uHat, flow.speed, flow.qDyn, area, norm(s.omegaBody), s.wakePhase ?? 0);
+    const momentBody = p.enable.moments ? matTVec(qToMatrix(s.q), loads.momentWorld) : ZERO3;
+    force = add(force, loads.force);
+    moment = add(moment, momentBody);
+    wake = { wake: loads.force };
+    wakeMoment = { wake: momentBody };
+    wakeDiagnostics = { wake_spin_attenuation: loads.spinAttenuation };
+    wakePhaseRate = loads.phaseRate;
+  }
+
   return {
-    force, momentBody: moment, drag, lift, magnus,
+    force, momentBody: moment, drag, lift, magnus, ...wake, wakePhaseRate,
     coefficients: { cd, cl, cy, cm_pitch: cmPitch },
-    momentComponents: { center_of_pressure: cpMoment, pitch: pitchMoment, damping: dampingMoment },
+    momentComponents: { center_of_pressure: cpMoment, pitch: pitchMoment, damping: dampingMoment, ...wakeMoment },
     diagnostics: {
       speed_m_s: flow.speed,
       dynamic_pressure_pa: flow.qDyn,
@@ -234,6 +276,7 @@ export function evaluateAero(p: SimpleModelParams, s: BodyState, cap: CapParams,
       reynolds_number: flow.reynolds,
       lift_degenerate_face_on: flow.faceOn,
       stationary: false,
+      ...wakeDiagnostics,
     },
   };
 }

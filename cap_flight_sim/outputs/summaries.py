@@ -33,6 +33,7 @@ def frame_snapshot(frame: Frame, mass_kg: float, gravity_m_s2: float) -> dict[st
             "drag": _vec(frame.aero.drag_world_n),
             "lift": _vec(frame.aero.lift_world_n),
             "magnus": _vec(frame.aero.magnus_world_n),
+            **({} if frame.aero.wake_world_n is None else {"wake": _vec(frame.aero.wake_world_n)}),
             "aeroTotal": _vec(frame.aero.force_world_n),
             "gravity": [0.0, 0.0, -mass_kg * gravity_m_s2],
         },

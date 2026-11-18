@@ -14,7 +14,7 @@ from .coordinates import quat_normalize, quat_to_matrix
 from .events import CATCHER_PLANE, MAX_TIME, NON_FINITE, SOLVER_FAILED, build_events, locate_event
 from .integrators import Segment, SolverFailedError, adaptive_segments, rk4_segments
 from .models import AerodynamicResult, RigidBodyState, SimulationConfig
-from .rigid_body import NonFiniteStateError, make_state_derivative
+from .rigid_body import NonFiniteStateError, make_state_derivative, wake_phase_from_vector
 
 
 @dataclass
@@ -42,7 +42,7 @@ class SimulationResult:
 
 def make_frame(t: float, y: np.ndarray, model: AerodynamicModel, config: SimulationConfig) -> Frame:
     q = quat_normalize(y[6:10])
-    state = RigidBodyState(t, np.array(y[0:3]), np.array(y[3:6]), q, np.array(y[10:13]))
+    state = RigidBodyState(t, np.array(y[0:3]), np.array(y[3:6]), q, np.array(y[10:13]), wake_phase_from_vector(y))
     rotation = quat_to_matrix(q)
     return Frame(
         state=state,
@@ -66,6 +66,8 @@ def run_simulation(
 
     fun = make_state_derivative(config.cap, config.environment, aero_fn, settings.quaternion_drift_gain)
     y0 = config.initial_state.to_vector()
+    if getattr(model, "uses_wake_phase", False):
+        y0 = np.append(y0, 0.0)  # 後流の位相 Φ（有効なときだけ積分する。無効時の状態は 13 要素のまま）
     t_end = settings.duration_sec
     if settings.solver == "rk4":
         segments_iter = rk4_segments(fun, 0.0, y0, t_end, settings.fixed_step_sec)
